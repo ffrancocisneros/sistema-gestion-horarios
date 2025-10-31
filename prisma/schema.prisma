@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id        String      @id @default(cuid())
+  name      String
+  hourlyRate Float       // Valor por hora en la moneda local
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  
+  workShifts WorkShift[]
+  activityLogs ActivityLog[]
+  
+  @@map("employees")
+}
+
+model WorkShift {
+  id        String    @id @default(cuid())
+  employeeId String
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  date      DateTime  @db.Date // Fecha del turno
+  
+  // Primer turno (obligatorio si se registra un turno)
+  entryTime1 DateTime? // Hora de entrada del primer turno
+  exitTime1  DateTime? // Hora de salida del primer turno
+  
+  // Segundo turno (opcional)
+  entryTime2 DateTime? // Hora de entrada del segundo turno
+  exitTime2  DateTime? // Hora de salida del segundo turno
+  
+  isPaid     Boolean   @default(false) // Si el día está marcado como pagado
+  
+  createdAt  DateTime  @default(now())
+  
+  @@unique([employeeId, date]) // Un empleado solo puede tener un registro por día
+  @@map("work_shifts")
+}
+
+model ActivityLog {
+  id        String    @id @default(cuid())
+  action    String    // Tipo de acción: "CREATE_EMPLOYEE", "UPDATE_EMPLOYEE", "DELETE_EMPLOYEE", "CREATE_SHIFT", "UPDATE_SHIFT", "DELETE_SHIFT", "TOGGLE_PAYMENT"
+  employeeId String?  // ID del empleado afectado (puede ser null para acciones generales)
+  employee  Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  details   String?   // Información adicional sobre la acción
+  timestamp DateTime  @default(now())
+  
+  @@map("activity_logs")
+}
+
