@@ -9,8 +9,13 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate')
     const period = searchParams.get('period') || 'monthly' // daily, weekly, monthly
 
+    const isPaidParam = searchParams.get('isPaid')
     const where: any = {
-      isPaid: true, // Solo días pagados
+      // Filtrar por estado de pago según el parámetro
+      // Si no se proporciona, por defecto mostrar solo pagados
+      isPaid: isPaidParam === null || isPaidParam === undefined 
+        ? true 
+        : isPaidParam === 'true',
     }
 
     if (employeeId) {
@@ -20,10 +25,18 @@ export async function GET(request: NextRequest) {
     if (startDate || endDate) {
       where.date = {}
       if (startDate) {
-        where.date.gte = new Date(startDate)
+        // Parsear fecha en zona horaria local para evitar problemas de UTC
+        const [year, month, day] = startDate.split('-').map(Number)
+        const start = new Date(year, month - 1, day)
+        start.setHours(0, 0, 0, 0)
+        where.date.gte = start
       }
       if (endDate) {
-        where.date.lte = new Date(endDate)
+        // Para incluir el día completo, agregamos un día y usamos menor que
+        const [year, month, day] = endDate.split('-').map(Number)
+        const endDateObj = new Date(year, month - 1, day + 1)
+        endDateObj.setHours(0, 0, 0, 0)
+        where.date.lt = endDateObj
       }
     }
 
@@ -103,6 +116,47 @@ export async function GET(request: NextRequest) {
         (salaryData[employeeId].monthly[monthKey] || 0) + salary
     })
 
+    // Preparar datos detallados de turnos para la tabla
+    const detailedShifts = shifts.map((shift) => {
+      let hours = 0
+      if (shift.entryTime1 && shift.exitTime1) {
+        hours +=
+          (shift.exitTime1.getTime() - shift.entryTime1.getTime()) /
+          (1000 * 60 * 60)
+      }
+      if (shift.entryTime2 && shift.exitTime2) {
+        hours +=
+          (shift.exitTime2.getTime() - shift.entryTime2.getTime()) /
+          (1000 * 60 * 60)
+      }
+      const salary = hours * shift.employee.hourlyRate
+
+      return {
+        shiftId: shift.id,
+        employeeId: shift.employeeId,
+        employeeName: shift.employee.name,
+        date: shift.date.toISOString().split('T')[0],
+        entryTime1: shift.entryTime1?.toISOString() || null,
+        exitTime1: shift.exitTime1?.toISOString() || null,
+        entryTime2: shift.entryTime2?.toISOString() || null,
+        exitTime2: shift.exitTime2?.toISOString() || null,
+        hours: Math.round(hours * 100) / 100,
+        salary: Math.round(salary * 100) / 100,
+        hourlyRate: shift.employee.hourlyRate,
+      }
+    })
+
+    // Calcular resumen agregado
+    const totalSalary = Object.values(salaryData).reduce(
+      (sum, data) => sum + data.totalSalary,
+      0
+    )
+    const totalHours = Object.values(salaryData).reduce(
+      (sum, data) => sum + data.totalHours,
+      0
+    )
+    const totalShifts = shifts.length
+
     // Formatear resultados según el período solicitado
     const result = Object.values(salaryData).map((data) => {
       let periodData: Record<string, number> = {}
@@ -126,18 +180,49 @@ export async function GET(request: NextRequest) {
         totalHours: Math.round(data.totalHours * 100) / 100,
         totalSalary: Math.round(data.totalSalary * 100) / 100,
         period: periodLabel,
-        periodData: Object.entries(periodData).map(([date, salary]) => ({
-          date,
-          salary: Math.round(salary * 100) / 100,
-        })),
+        periodData: Object.entries(periodData)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, salary]) => ({
+            date,
+            salary: Math.round(salary * 100) / 100,
+          })),
       }
     })
 
-    return NextResponse.json(result)
-  } catch (error) {
+    return NextResponse.json({
+      summary: {
+        totalSalary: Math.round(totalSalary * 100) / 100,
+        totalHours: Math.round(totalHours * 100) / 100,
+        totalShifts,
+        startDate: startDate || null,
+        endDate: endDate || null,
+      },
+      employees: result,
+      detailedShifts,
+    })
+  } catch (error: any) {
     console.error('Error calculating salaries:', error)
+    console.error('Error code:', error?.code)
+    console.error('Error message:', error?.message)
+    console.error('Error stack:', error?.stack)
+    
+    // Manejar errores específicos de Prisma
+    if (error?.code === 'P1001') {
+      return NextResponse.json(
+        { 
+          error: 'Error de conexión a la base de datos. Por favor, intenta nuevamente.',
+          details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+        },
+        { status: 503 } // Service Unavailable
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Error al calcular sueldos' },
+      { 
+        error: 'Error al calcular sueldos',
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+        code: process.env.NODE_ENV === 'development' ? error?.code : undefined,
+      },
       { status: 500 }
     )
   }

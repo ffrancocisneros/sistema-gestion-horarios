@@ -6,8 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Pagination } from '@/components/ui/pagination'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale/es'
+import { toast } from 'sonner'
+import { useSortableTable } from '@/hooks/use-sortable-table'
 
 interface Employee {
   id: string
@@ -21,6 +24,13 @@ interface ActivityLog {
   employee: Employee | null
   details: string | null
   timestamp: string
+}
+
+interface PaginationData {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
 }
 
 const actionLabels: Record<string, string> = {
@@ -41,6 +51,16 @@ export default function LogsPage() {
   const [selectedAction, setSelectedAction] = useState<string>('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
+  const [pagination, setPagination] = useState<PaginationData>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  })
+
+  const { sortBy, sortOrder, handleSort, getSortIcon } = useSortableTable<'timestamp' | 'action'>('timestamp', 'desc')
 
   useEffect(() => {
     fetchEmployees()
@@ -48,17 +68,18 @@ export default function LogsPage() {
 
   useEffect(() => {
     fetchLogs()
-  }, [selectedEmployee, selectedAction, startDate, endDate])
+  }, [selectedEmployee, selectedAction, startDate, endDate, page, limit, sortBy, sortOrder])
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('/api/employees')
+      const response = await fetch('/api/employees?limit=1000')
       if (response.ok) {
-        const data = await response.json()
-        setEmployees(data)
+        const result = await response.json()
+        setEmployees(result.data || [])
       }
     } catch (error) {
       console.error('Error fetching employees:', error)
+      toast.error('Error al cargar empleados')
     }
   }
 
@@ -78,23 +99,46 @@ export default function LogsPage() {
       if (endDate) {
         params.append('endDate', endDate)
       }
+      params.append('page', page.toString())
+      params.append('limit', limit.toString())
+      if (sortBy) {
+        params.append('sortBy', sortBy)
+        params.append('sortOrder', sortOrder)
+      }
 
       const response = await fetch(`/api/logs?${params.toString()}`)
       if (response.ok) {
-        const data = await response.json()
-        setLogs(data)
+        const result = await response.json()
+        setLogs(result.data || [])
+        setPagination(result.pagination || pagination)
+      } else {
+        toast.error('Error al cargar logs')
       }
     } catch (error) {
       console.error('Error fetching logs:', error)
+      toast.error('Error al cargar logs')
     } finally {
       setLoading(false)
     }
   }
 
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+  }
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit)
+    setPage(1)
+  }
+
+  const handleFilterChange = () => {
+    setPage(1) // Resetear a primera página al cambiar filtros
+  }
+
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Logs de Actividad</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Logs de Actividad</h1>
         <p className="text-muted-foreground mt-1">
           Registro de todas las acciones realizadas en el sistema
         </p>
@@ -112,7 +156,13 @@ export default function LogsPage() {
           <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor="employee">Empleado</Label>
-              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+              <Select 
+                value={selectedEmployee} 
+                onValueChange={(value) => {
+                  setSelectedEmployee(value)
+                  handleFilterChange()
+                }}
+              >
                 <SelectTrigger id="employee">
                   <SelectValue placeholder="Todos los empleados" />
                 </SelectTrigger>
@@ -129,7 +179,13 @@ export default function LogsPage() {
 
             <div className="space-y-2">
               <Label htmlFor="action">Acción</Label>
-              <Select value={selectedAction} onValueChange={setSelectedAction}>
+              <Select 
+                value={selectedAction} 
+                onValueChange={(value) => {
+                  setSelectedAction(value)
+                  handleFilterChange()
+                }}
+              >
                 <SelectTrigger id="action">
                   <SelectValue placeholder="Todas las acciones" />
                 </SelectTrigger>
@@ -150,7 +206,10 @@ export default function LogsPage() {
                 id="startDate"
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value)
+                  handleFilterChange()
+                }}
               />
             </div>
 
@@ -160,7 +219,10 @@ export default function LogsPage() {
                 id="endDate"
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value)
+                  handleFilterChange()
+                }}
               />
             </div>
           </div>
@@ -172,11 +234,11 @@ export default function LogsPage() {
         <CardHeader>
           <CardTitle>Registro de Actividades</CardTitle>
           <CardDescription>
-            {logs.length} registro{logs.length !== 1 ? 's' : ''} encontrado{logs.length !== 1 ? 's' : ''}
+            {pagination.total} registro{pagination.total !== 1 ? 's' : ''} encontrado{pagination.total !== 1 ? 's' : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {loading && logs.length === 0 ? (
             <div className="flex justify-center items-center h-64">
               <p className="text-muted-foreground">Cargando logs...</p>
             </div>
@@ -185,40 +247,71 @@ export default function LogsPage() {
               No hay logs disponibles para los filtros seleccionados
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha y Hora</TableHead>
-                  <TableHead>Acción</TableHead>
-                  <TableHead>Empleado</TableHead>
-                  <TableHead>Detalles</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>
-                      {format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm:ss', {
-                        locale: es,
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      {actionLabels[log.action] || log.action}
-                    </TableCell>
-                    <TableCell>
-                      {log.employee ? log.employee.name : '-'}
-                    </TableCell>
-                    <TableCell className="max-w-md truncate">
-                      {log.details || '-'}
-                    </TableCell>
+            <>
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleSort('timestamp')}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>Fecha y Hora</span>
+                        <span className="text-xs">{getSortIcon('timestamp')}</span>
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleSort('action')}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>Acción</span>
+                        <span className="text-xs">{getSortIcon('action')}</span>
+                      </div>
+                    </TableHead>
+                    <TableHead>Empleado</TableHead>
+                    <TableHead>Detalles</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {logs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell>
+                        {format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm:ss', {
+                          locale: es,
+                        })}
+                      </TableCell>
+                      <TableCell>
+                        {actionLabels[log.action] || log.action}
+                      </TableCell>
+                      <TableCell>
+                        {log.employee ? log.employee.name : '-'}
+                      </TableCell>
+                      <TableCell className="max-w-md truncate">
+                        {log.details || '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              </div>
+              {pagination.totalPages > 1 && (
+                <div className="mt-4">
+                  <Pagination
+                    page={pagination.page}
+                    limit={pagination.limit}
+                    total={pagination.total}
+                    totalPages={pagination.totalPages}
+                    onPageChange={handlePageChange}
+                    onLimitChange={handleLimitChange}
+                  />
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
     </div>
   )
 }
-

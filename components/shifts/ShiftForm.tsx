@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 
 const shiftSchema = z
   .object({
@@ -23,14 +24,11 @@ const shiftSchema = z
   })
   .refine(
     (data) => {
-      // Al menos un turno debe tener horarios
-      return (
-        (data.entryTime1 && data.exitTime1) ||
-        (data.entryTime2 && data.exitTime2)
-      )
+      // Al menos debe tener una hora de entrada
+      return data.entryTime1 || data.entryTime2
     },
     {
-      message: 'Debe completar al menos un turno',
+      message: 'Debe ingresar al menos una hora de entrada',
     }
   )
 
@@ -63,6 +61,11 @@ export function ShiftForm({ employees, shift, onSuccess, readonlyEmployeeId }: S
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSecondShift, setShowSecondShift] = useState(false)
 
+  // Ordenar empleados alfabéticamente
+  const sortedEmployees = [...employees].sort((a, b) => 
+    a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
+  )
+
   const {
     register,
     handleSubmit,
@@ -75,7 +78,14 @@ export function ShiftForm({ employees, shift, onSuccess, readonlyEmployeeId }: S
     defaultValues: {
       employeeId: shift?.employeeId || '',
       date: shift?.date
-        ? format(new Date(shift.date), 'yyyy-MM-dd')
+        ? (() => {
+            // Parsear fecha en zona horaria local para evitar problemas de UTC
+            const dateStr = typeof shift.date === 'string' ? shift.date : shift.date.toISOString()
+            const dateOnly = dateStr.split('T')[0]
+            const [year, month, day] = dateOnly.split('-').map(Number)
+            const localDate = new Date(year, month - 1, day)
+            return format(localDate, 'yyyy-MM-dd')
+          })()
         : format(new Date(), 'yyyy-MM-dd'),
       entryTime1: shift?.entryTime1
         ? format(new Date(shift.entryTime1), 'HH:mm')
@@ -101,7 +111,14 @@ export function ShiftForm({ employees, shift, onSuccess, readonlyEmployeeId }: S
     if (shift) {
       reset({
         employeeId: readonlyEmployeeId ?? shift.employeeId,
-        date: format(new Date(shift.date), 'yyyy-MM-dd'),
+        date: (() => {
+          // Parsear fecha en zona horaria local para evitar problemas de UTC
+          const dateStr = typeof shift.date === 'string' ? shift.date : shift.date.toISOString()
+          const dateOnly = dateStr.split('T')[0]
+          const [year, month, day] = dateOnly.split('-').map(Number)
+          const localDate = new Date(year, month - 1, day)
+          return format(localDate, 'yyyy-MM-dd')
+        })(),
         entryTime1: shift.entryTime1
           ? format(new Date(shift.entryTime1), 'HH:mm')
           : '',
@@ -154,11 +171,16 @@ export function ShiftForm({ employees, shift, onSuccess, readonlyEmployeeId }: S
         onSuccess()
       } else {
         const error = await response.json()
-        alert(error.error || 'Error al guardar turno')
+        console.error('Error response:', error)
+        toast.error(error.error || 'Error al guardar turno', {
+          description: error.details || error.code,
+        })
       }
     } catch (error) {
       console.error('Error submitting form:', error)
-      alert('Error al guardar turno')
+      toast.error('Error al guardar turno', {
+        description: 'Revisa la consola para más detalles',
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -182,7 +204,7 @@ export function ShiftForm({ employees, shift, onSuccess, readonlyEmployeeId }: S
                 <SelectValue placeholder="Seleccionar empleado" />
               </SelectTrigger>
               <SelectContent>
-                {employees.map((employee) => (
+                {sortedEmployees.map((employee) => (
                   <SelectItem key={employee.id} value={employee.id}>
                     {employee.name}
                   </SelectItem>

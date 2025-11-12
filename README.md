@@ -134,13 +134,38 @@ La aplicación estará disponible en `http://localhost:3000`
 
 ### Vercel (Recomendado)
 
-1. Conectar tu repositorio con Vercel
-2. Configurar la variable de entorno `DATABASE_URL`
-3. Vercel detectará automáticamente Next.js y desplegará
+1. **Conectar repositorio:**
+   - Ve a [vercel.com](https://vercel.com) y conecta tu repositorio de GitHub/GitLab/Bitbucket
+   - Vercel detectará automáticamente Next.js
+
+2. **Configurar variables de entorno:**
+   - En la configuración del proyecto en Vercel, ve a "Environment Variables"
+   - Agrega: `DATABASE_URL` con tu connection string de PostgreSQL
+   - **Importante para Supabase:** Usa el connection string con puerto `6543` para pooler o `5432` para direct connection
+
+3. **Build Command (ya configurado):**
+   - El proyecto ya incluye `prisma generate` en el script `build` y `postinstall`
+   - Vercel ejecutará automáticamente `npm run build`
+
+4. **Inicializar base de datos:**
+   - Después del primer deploy, ejecuta localmente o en un entorno con acceso a la BD:
+   ```bash
+   npx prisma db push
+   ```
+   - O usa Prisma Migrate para producción:
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+5. **Verificar deploy:**
+   - Una vez completado, tu aplicación estará disponible en la URL proporcionada por Vercel
 
 ### Otros proveedores
 
-El proyecto es compatible con cualquier proveedor que soporte Next.js (Railway, Render, etc.)
+El proyecto es compatible con cualquier proveedor que soporte Next.js (Railway, Render, etc.). Asegúrate de:
+- Configurar `DATABASE_URL` como variable de entorno
+- Ejecutar `prisma generate` antes del build
+- Ejecutar `prisma db push` o `prisma migrate deploy` después del primer deploy
 
 ## Notas
 

@@ -1,16 +1,25 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ShiftForm } from '@/components/shifts/ShiftForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Pagination } from '@/components/ui/pagination'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, Edit, Trash2, ArrowLeft } from 'lucide-react'
+import { Plus, Edit, Trash2, ArrowLeft, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale/es'
+import { toast } from 'sonner'
+import { useSortableTable } from '@/hooks/use-sortable-table'
+
+// Lazy load de formularios
+const ShiftForm = dynamic(() => import('@/components/shifts/ShiftForm').then((mod) => ({ default: mod.ShiftForm })), {
+  loading: () => <div className="py-4 text-muted-foreground">Cargando formulario...</div>,
+})
 
 interface Employee {
   id: string
@@ -30,6 +39,13 @@ interface WorkShift {
   createdAt: string
 }
 
+interface PaginationData {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
+
 export default function EmployeeShiftsPage({ params }: { params: { id: string } }) {
   const employeeId = params.id
   const [shifts, setShifts] = useState<WorkShift[]>([])
@@ -37,6 +53,18 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingShift, setEditingShift] = useState<WorkShift | null>(null)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
+  const [pagination, setPagination] = useState<PaginationData>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  })
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [shiftToDelete, setShiftToDelete] = useState<{ id: string; date: string } | null>(null)
+
+  const { sortBy, sortOrder, handleSort, getSortIcon } = useSortableTable<'date' | 'createdAt' | 'isPaid'>('date', 'desc')
 
   const fetchEmployee = async () => {
     try {
@@ -47,18 +75,33 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
       }
     } catch (error) {
       console.error('Error fetching employee:', error)
+      toast.error('Error al cargar empleado')
     }
   }
 
   const fetchShifts = async () => {
+    setLoading(true)
     try {
-      const response = await fetch(`/api/shifts?employeeId=${employeeId}`)
+      const params = new URLSearchParams()
+      params.append('employeeId', employeeId)
+      params.append('page', page.toString())
+      params.append('limit', limit.toString())
+      if (sortBy) {
+        params.append('sortBy', sortBy)
+        params.append('sortOrder', sortOrder)
+      }
+
+      const response = await fetch(`/api/shifts?${params.toString()}`)
       if (response.ok) {
-        const data = await response.json()
-        setShifts(data)
+        const result = await response.json()
+        setShifts(result.data || [])
+        setPagination(result.pagination || pagination)
+      } else {
+        toast.error('Error al cargar turnos')
       }
     } catch (error) {
       console.error('Error fetching shifts:', error)
+      toast.error('Error al cargar turnos')
     } finally {
       setLoading(false)
     }
@@ -66,27 +109,42 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
 
   useEffect(() => {
     fetchEmployee()
-    fetchShifts()
   }, [employeeId])
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este turno?')) {
-      return
-    }
+  useEffect(() => {
+    fetchShifts()
+  }, [employeeId, page, limit, sortBy, sortOrder])
+
+  const handleDeleteClick = (id: string, date: string) => {
+    setShiftToDelete({ id, date })
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!shiftToDelete) return
 
     try {
-      const response = await fetch(`/api/shifts/${id}`, {
+      const response = await fetch(`/api/shifts/${shiftToDelete.id}`, {
         method: 'DELETE',
       })
 
       if (response.ok) {
-        fetchShifts()
+        toast.success('Turno eliminado correctamente')
+        // Si era el último item de la página y no es la primera, volver a la anterior
+        if (shifts.length === 1 && page > 1) {
+          setPage(page - 1)
+        } else {
+          fetchShifts()
+        }
       } else {
-        alert('Error al eliminar turno')
+        toast.error('Error al eliminar turno')
       }
     } catch (error) {
       console.error('Error deleting shift:', error)
-      alert('Error al eliminar turno')
+      toast.error('Error al eliminar turno')
+    } finally {
+      setDeleteDialogOpen(false)
+      setShiftToDelete(null)
     }
   }
 
@@ -103,13 +161,14 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
       })
 
       if (response.ok) {
+        toast.success(`Turno marcado como ${!shift.isPaid ? 'pagado' : 'no pagado'}`)
         fetchShifts()
       } else {
-        alert('Error al actualizar estado de pago')
+        toast.error('Error al actualizar estado de pago')
       }
     } catch (error) {
       console.error('Error toggling payment:', error)
-      alert('Error al actualizar estado de pago')
+      toast.error('Error al actualizar estado de pago')
     }
   }
 
@@ -121,7 +180,17 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
   const handleFormSuccess = () => {
     setIsDialogOpen(false)
     setEditingShift(null)
+    toast.success(editingShift ? 'Turno actualizado correctamente' : 'Turno creado correctamente')
     fetchShifts()
+  }
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+  }
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit)
+    setPage(1)
   }
 
   const calculateHours = (shift: WorkShift): number => {
@@ -150,7 +219,22 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
     return format(dt, 'HH:mm')
   }
 
-  if (loading) {
+  // Helper para parsear fecha en zona horaria local (evita problemas de UTC)
+  const parseLocalDate = (dateString: string | Date): Date => {
+    if (dateString instanceof Date) {
+      // Si ya es Date, extraer solo la parte de fecha
+      const year = dateString.getFullYear()
+      const month = dateString.getMonth()
+      const day = dateString.getDate()
+      return new Date(year, month, day)
+    }
+    // Si es string ISO, extraer solo la parte de fecha
+    const dateOnly = dateString.split('T')[0]
+    const [year, month, day] = dateOnly.split('-').map(Number)
+    return new Date(year, month - 1, day)
+  }
+
+  if (loading && shifts.length === 0) {
     return (
       <div className="container mx-auto py-8">
         <div className="flex justify-between items-center mb-6">
@@ -169,7 +253,13 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Turnos de {employee?.name || 'Empleado'}</h1>
+          <Link href="/shifts">
+            <Button variant="ghost" className="gap-2 mb-2">
+              <ArrowLeft className="h-4 w-4" />
+              Volver
+            </Button>
+          </Link>
+          <h1 className="text-2xl sm:text-3xl font-bold">Turnos de {employee?.name || 'Empleado'}</h1>
           <p className="text-muted-foreground mt-1">
             Registra y gestiona los horarios del empleado
           </p>
@@ -201,7 +291,7 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
         <CardHeader>
           <CardTitle>Registro de Turnos</CardTitle>
           <CardDescription>
-            {shifts.length} turno{shifts.length !== 1 ? 's' : ''} registrado{shifts.length !== 1 ? 's' : ''}
+            {pagination.total} turno{pagination.total !== 1 ? 's' : ''} registrado{pagination.total !== 1 ? 's' : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -210,69 +300,128 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
               No hay turnos registrados para este empleado.
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Turno 1</TableHead>
-                  <TableHead>Turno 2</TableHead>
-                  <TableHead>Horas</TableHead>
-                  <TableHead>Pagado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {shifts.map((shift) => (
-                  <TableRow key={shift.id}>
-                    <TableCell>
-                      {format(new Date(shift.date), 'dd/MM/yyyy', { locale: es })}
-                    </TableCell>
-                    <TableCell>
-                      {shift.entryTime1 && shift.exitTime1
-                        ? `${formatTime(shift.entryTime1)} - ${formatTime(shift.exitTime1)}`
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {shift.entryTime2 && shift.exitTime2
-                        ? `${formatTime(shift.entryTime2)} - ${formatTime(shift.exitTime2)}`
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {calculateHours(shift).toFixed(2)}h
-                    </TableCell>
-                    <TableCell>
-                      <Checkbox
-                        checked={shift.isPaid}
-                        onCheckedChange={() => handleTogglePayment(shift)}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(shift)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(shift.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+            <>
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleSort('date')}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>Fecha</span>
+                        <span className="text-xs">{getSortIcon('date')}</span>
                       </div>
-                    </TableCell>
+                    </TableHead>
+                    <TableHead>Turno 1</TableHead>
+                    <TableHead>Turno 2</TableHead>
+                    <TableHead>Horas</TableHead>
+                    <TableHead>Pagado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {shifts.map((shift) => (
+                    <TableRow key={shift.id}>
+                      <TableCell>
+                        {format(parseLocalDate(shift.date), 'dd/MM/yyyy', { locale: es })}
+                      </TableCell>
+                      <TableCell>
+                        {shift.entryTime1 ? (
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {formatTime(shift.entryTime1)}
+                              {shift.exitTime1 ? ` - ${formatTime(shift.exitTime1)}` : ''}
+                            </span>
+                            {shift.entryTime1 && !shift.exitTime1 && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#CD9A56]/20 text-[#CD9A56] dark:bg-[#CD9A56]/30 dark:text-[#CD9A56] text-xs">
+                                <AlertTriangle className="h-3 w-3" />
+                                Falta salida
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {shift.entryTime2 ? (
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {formatTime(shift.entryTime2)}
+                              {shift.exitTime2 ? ` - ${formatTime(shift.exitTime2)}` : ''}
+                            </span>
+                            {shift.entryTime2 && !shift.exitTime2 && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#CD9A56]/20 text-[#CD9A56] dark:bg-[#CD9A56]/30 dark:text-[#CD9A56] text-xs">
+                                <AlertTriangle className="h-3 w-3" />
+                                Falta salida
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {calculateHours(shift).toFixed(2)}h
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          checked={shift.isPaid}
+                          onCheckedChange={() => handleTogglePayment(shift)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(shift)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteClick(shift.id, shift.date)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              </div>
+              {pagination.totalPages > 1 && (
+                <div className="mt-4">
+                  <Pagination
+                    page={pagination.page}
+                    limit={pagination.limit}
+                    total={pagination.total}
+                    totalPages={pagination.totalPages}
+                    onPageChange={handlePageChange}
+                    onLimitChange={handleLimitChange}
+                  />
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Eliminar Turno"
+        description={`¿Estás seguro de que quieres eliminar el turno del ${shiftToDelete ? format(parseLocalDate(shiftToDelete.date), 'dd/MM/yyyy', { locale: es }) : ''}? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onConfirm={handleDeleteConfirm}
+        variant="destructive"
+      />
     </div>
   )
 }
-
-

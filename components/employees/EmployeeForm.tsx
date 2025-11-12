@@ -7,6 +7,7 @@ import * as z from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { toast } from 'sonner'
 
 const employeeSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -82,11 +83,16 @@ export function EmployeeForm({ employee, onSuccess }: EmployeeFormProps) {
         onSuccess()
       } else {
         const error = await response.json()
-        alert(error.error || 'Error al guardar empleado')
+        console.error('Error response:', error)
+        toast.error(error.error || 'Error al guardar empleado', {
+          description: error.details || error.code,
+        })
       }
     } catch (error) {
       console.error('Error submitting form:', error)
-      alert('Error al guardar empleado')
+      toast.error('Error al guardar empleado', {
+        description: 'Revisa la consola para más detalles',
+      })
     } finally {
       setIsSubmitting(false)
     }

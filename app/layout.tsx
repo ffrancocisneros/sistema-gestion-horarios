@@ -1,9 +1,12 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
 import './globals.css'
-import { Navbar } from '@/components/layout/Navbar'
-
-const inter = Inter({ subsets: ['latin'] })
+import { Sidebar } from '@/components/layout/Sidebar'
+import { ThemeProvider } from '@/components/theme-provider'
+import { Toaster } from 'sonner'
+import { SidebarProvider } from '@/contexts/SidebarContext'
+import { MainContent } from '@/components/layout/MainContent'
 
 export const metadata: Metadata = {
   title: 'Sistema de Gestión de Horarios',
@@ -16,12 +19,18 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es">
-      <body className={inter.className}>
-        <Navbar />
-        {children}
+    <html lang="es" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <body className="font-sans">
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <SidebarProvider>
+            <div className="flex">
+              <Sidebar />
+              <MainContent>{children}</MainContent>
+            </div>
+          </SidebarProvider>
+          <Toaster position="top-right" richColors />
+        </ThemeProvider>
       </body>
     </html>
   )
 }
-

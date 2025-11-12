@@ -20,6 +20,7 @@ model Employee {
   workShifts WorkShift[]
   activityLogs ActivityLog[]
   
+  @@index([createdAt])
   @@map("employees")
 }
 
@@ -43,6 +44,10 @@ model WorkShift {
   createdAt  DateTime  @default(now())
   
   @@unique([employeeId, date]) // Un empleado solo puede tener un registro por día
+  @@index([employeeId])
+  @@index([date])
+  @@index([isPaid])
+  @@index([employeeId, date])
   @@map("work_shifts")
 }
 
@@ -54,6 +59,10 @@ model ActivityLog {
   details   String?   // Información adicional sobre la acción
   timestamp DateTime  @default(now())
   
+  @@index([employeeId])
+  @@index([action])
+  @@index([timestamp])
+  @@index([employeeId, timestamp])
   @@map("activity_logs")
 }
 
