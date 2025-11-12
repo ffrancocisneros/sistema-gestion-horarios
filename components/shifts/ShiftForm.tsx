@@ -42,7 +42,7 @@ interface Employee {
 interface WorkShift {
   id: string
   employeeId: string
-  date: string
+  date: string | Date
   entryTime1?: string | null
   exitTime1?: string | null
   entryTime2?: string | null
@@ -80,7 +80,14 @@ export function ShiftForm({ employees, shift, onSuccess, readonlyEmployeeId }: S
       date: shift?.date
         ? (() => {
             // Parsear fecha en zona horaria local para evitar problemas de UTC
-            const dateStr = typeof shift.date === 'string' ? shift.date : shift.date.toISOString()
+            let dateStr: string
+            if (typeof shift.date === 'string') {
+              dateStr = shift.date
+            } else if (shift.date instanceof Date) {
+              dateStr = shift.date.toISOString()
+            } else {
+              dateStr = String(shift.date)
+            }
             const dateOnly = dateStr.split('T')[0]
             const [year, month, day] = dateOnly.split('-').map(Number)
             const localDate = new Date(year, month - 1, day)
