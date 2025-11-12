@@ -155,11 +155,26 @@ export default function SalariesPage() {
       const response = await fetch('/api/employees?limit=1000')
       if (response.ok) {
         const result = await response.json()
-        setEmployees(result.data || [])
+        if (result.data && Array.isArray(result.data)) {
+          setEmployees(result.data)
+        } else {
+          console.warn('Unexpected response format:', result)
+          setEmployees([])
+        }
+      } else {
+        // Solo mostrar error si no es un error de conexión inicial
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Error fetching employees:', response.status, errorData)
+        // No mostrar toast para errores temporales de conexión
+        if (response.status !== 500) {
+          toast.error('Error al cargar empleados')
+        }
+        setEmployees([])
       }
     } catch (error) {
       console.error('Error fetching employees:', error)
-      toast.error('Error al cargar empleados')
+      // No mostrar toast para errores de red temporales
+      setEmployees([])
     }
   }
 
@@ -173,8 +188,7 @@ export default function SalariesPage() {
       params.append('startDate', startDate)
       params.append('endDate', endDate)
       params.append('period', period)
-      // No filtrar por isPaid, mostrar todos
-      params.append('isPaid', 'false')
+      // No filtrar por isPaid, mostrar todos (no enviar el parámetro)
 
       const url = `/api/salaries?${params.toString()}`
       console.log('Fetching salaries from:', url)
@@ -212,7 +226,10 @@ export default function SalariesPage() {
         if (data.error) {
           setSalaryData(null)
           console.error('Error in response body:', data)
-          toast.error(data.error || 'Error al calcular sueldos')
+          // Solo mostrar error si no es un error de conexión temporal
+          if (response.status !== 500) {
+            toast.error(data.error || 'Error al calcular sueldos')
+          }
         } else {
           // Verificar que tenga la estructura esperada
           if (data.summary && data.employees && data.detailedShifts) {
@@ -221,14 +238,20 @@ export default function SalariesPage() {
           } else {
             setSalaryData(null)
             console.error('Invalid response structure:', data)
-            toast.error('Error: Respuesta inválida del servidor')
+            // No mostrar error para respuestas vacías iniciales
+            if (data.summary || data.employees || data.detailedShifts) {
+              toast.error('Error: Respuesta inválida del servidor')
+            }
           }
         }
       } else {
         // Si hay un error HTTP, limpiar los datos anteriores
         setSalaryData(null)
         console.error('HTTP Error response:', response.status, data)
-        toast.error(data.error || `Error al calcular sueldos (${response.status})`)
+        // Solo mostrar error si no es un error de conexión temporal (500)
+        if (response.status !== 500) {
+          toast.error(data.error || `Error al calcular sueldos (${response.status})`)
+        }
       }
     } catch (error: any) {
       // Ignorar errores de abort

@@ -11,11 +11,13 @@ export async function GET(request: NextRequest) {
 
     const isPaidParam = searchParams.get('isPaid')
     const where: any = {
-      // Filtrar por estado de pago según el parámetro
-      // Si no se proporciona, por defecto mostrar solo pagados
-      isPaid: isPaidParam === null || isPaidParam === undefined 
-        ? true 
-        : isPaidParam === 'true',
+      // Solo filtrar por estado de pago si se proporciona explícitamente
+      // Si no se proporciona, mostrar todos los turnos (no filtrar)
+    }
+    
+    // Solo agregar filtro de isPaid si se proporciona explícitamente
+    if (isPaidParam !== null && isPaidParam !== undefined) {
+      where.isPaid = isPaidParam === 'true'
     }
 
     if (employeeId) {
