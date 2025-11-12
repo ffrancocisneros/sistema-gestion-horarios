@@ -68,6 +68,10 @@ export function EmployeeForm({ employee, onSuccess }: EmployeeFormProps) {
         : '/api/employees'
       const method = employee ? 'PATCH' : 'POST'
 
+      // Crear un AbortController para timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -77,22 +81,41 @@ export function EmployeeForm({ employee, onSuccess }: EmployeeFormProps) {
           name: data.name,
           hourlyRate: data.hourlyRate,
         }),
+        signal: controller.signal,
       })
 
+      clearTimeout(timeoutId)
+
       if (response.ok) {
+        toast.success(employee ? 'Empleado actualizado' : 'Empleado creado')
         onSuccess()
       } else {
-        const error = await response.json()
+        const error = await response.json().catch(() => ({ error: 'Error desconocido' }))
         console.error('Error response:', error)
-        toast.error(error.error || 'Error al guardar empleado', {
-          description: error.details || error.code,
+        
+        // Manejar errores específicos
+        if (response.status === 503) {
+          toast.error('Error de conexión', {
+            description: 'La base de datos está tardando en responder. Por favor, intenta nuevamente.',
+          })
+        } else {
+          toast.error(error.error || 'Error al guardar empleado', {
+            description: error.details || error.code,
+          })
+        }
+      }
+    } catch (error: any) {
+      console.error('Error submitting form:', error)
+      
+      if (error.name === 'AbortError') {
+        toast.error('Tiempo de espera agotado', {
+          description: 'La operación está tardando demasiado. Por favor, intenta nuevamente.',
+        })
+      } else {
+        toast.error('Error al guardar empleado', {
+          description: 'Revisa tu conexión e intenta nuevamente.',
         })
       }
-    } catch (error) {
-      console.error('Error submitting form:', error)
-      toast.error('Error al guardar empleado', {
-        description: 'Revisa la consola para más detalles',
-      })
     } finally {
       setIsSubmitting(false)
     }

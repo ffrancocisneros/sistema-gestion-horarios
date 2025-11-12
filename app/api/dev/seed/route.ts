@@ -2,7 +2,16 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 // Endpoint de desarrollo para cargar datos de ejemplo
+// SOLO DISPONIBLE EN MODO DESARROLLO
 export async function GET() {
+  // Proteger el endpoint: solo disponible en desarrollo
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Este endpoint solo está disponible en modo desarrollo' },
+      { status: 403 }
+    )
+  }
+
   try {
     // Limpieza básica (solo datos de ejemplo)
     await prisma.activityLog.deleteMany({})

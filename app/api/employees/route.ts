@@ -49,10 +49,25 @@ export async function GET(request: NextRequest) {
         totalPages,
       },
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching employees:', error)
+    
+    // Manejar errores específicos de conexión
+    if (error?.code === 'P1001') {
+      return NextResponse.json(
+        { 
+          error: 'Error de conexión a la base de datos. Por favor, intenta nuevamente.',
+          details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+        },
+        { status: 503 } // Service Unavailable
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Error al obtener empleados' },
+      { 
+        error: 'Error al obtener empleados',
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+      },
       { status: 500 }
     )
   }
