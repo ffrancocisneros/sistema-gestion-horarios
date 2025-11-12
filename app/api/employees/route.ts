@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     // Construir orderBy de forma segura
     const orderBy: Record<string, 'asc' | 'desc'> = {}
-    orderBy[sortField] = order
+    orderBy[sortField] = order as 'asc' | 'desc'
 
     // Obtener total de registros
     const total = await prisma.employee.count()
