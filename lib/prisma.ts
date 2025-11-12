@@ -11,10 +11,13 @@ const getDatabaseUrl = () => {
   
   // Si es un connection string de pooler (contiene 'pooler' o puerto 6543), agregar parámetros
   if (url.includes('pooler') || url.includes(':6543')) {
-    // Agregar parámetros para evitar problemas con prepared statements en connection pooling
+    // Agregar pgbouncer=true para indicarle a Prisma que está usando un pooler
+    // Esto hace que Prisma deshabilite prepared statements automáticamente
     const separator = url.includes('?') ? '&' : '?'
-    // connection_limit=1 evita que Prisma reutilice conexiones con prepared statements
-    return `${url}${separator}connection_limit=1&pool_timeout=0`
+    // Si ya tiene pgbouncer=true, no agregarlo de nuevo
+    if (!url.includes('pgbouncer=true')) {
+      return `${url}${separator}pgbouncer=true`
+    }
   }
   
   return url
