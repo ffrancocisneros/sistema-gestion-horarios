@@ -35,7 +35,7 @@ export async function GET() {
     }
 
     // Crea turno utilitario
-    async function createShift(
+    const createShift = async (
       employeeId: string,
       date: Date,
       t1in?: string,
@@ -43,7 +43,7 @@ export async function GET() {
       t2in?: string,
       t2out?: string,
       isPaid?: boolean
-    ) {
+    ) => {
       const dateStr = date.toISOString().slice(0, 10)
       const toDT = (time?: string) => (time ? new Date(`${dateStr}T${time}:00`) : null)
       const shift = await prisma.workShift.create({
