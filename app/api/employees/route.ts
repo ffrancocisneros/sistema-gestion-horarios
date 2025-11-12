@@ -19,6 +19,10 @@ export async function GET(request: NextRequest) {
     
     const skip = (page - 1) * limit
 
+    // Construir orderBy de forma segura
+    const orderBy: Record<string, 'asc' | 'desc'> = {}
+    orderBy[sortField] = order
+
     // Obtener total de registros
     const total = await prisma.employee.count()
 
@@ -26,9 +30,7 @@ export async function GET(request: NextRequest) {
     const employees = await prisma.employee.findMany({
       skip,
       take: limit,
-      orderBy: {
-        [sortField]: order,
-      },
+      orderBy,
       select: {
         id: true,
         name: true,
@@ -51,6 +53,9 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Error fetching employees:', error)
+    console.error('Error code:', error?.code)
+    console.error('Error message:', error?.message)
+    console.error('Error stack:', error?.stack)
     
     // Manejar errores específicos de conexión
     if (error?.code === 'P1001') {
@@ -63,10 +68,22 @@ export async function GET(request: NextRequest) {
       )
     }
     
+    // Manejar errores de tabla no encontrada
+    if (error?.code === 'P2021' || error?.code === 'P2025') {
+      return NextResponse.json(
+        { 
+          error: 'La base de datos no está inicializada. Por favor, ejecuta "npx prisma db push" primero.',
+          details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+        },
+        { status: 503 }
+      )
+    }
+    
     return NextResponse.json(
       { 
         error: 'Error al obtener empleados',
         details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+        code: process.env.NODE_ENV === 'development' ? error?.code : undefined,
       },
       { status: 500 }
     )
