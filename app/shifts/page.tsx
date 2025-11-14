@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, AlertTriangle, Edit } from 'lucide-react'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
+import { format, startOfWeek, endOfWeek, subDays } from 'date-fns'
 import { es } from 'date-fns/locale/es'
 import { useSortableTable } from '@/hooks/use-sortable-table'
 
@@ -43,7 +43,7 @@ interface PaginationData {
 }
 
 export default function ShiftsByEmployeePage() {
-  const [activeTab, setActiveTab] = useState<'employees' | 'day'>('employees')
+  const [activeTab, setActiveTab] = useState<'employees' | 'date'>('employees')
   const [employees, setEmployees] = useState<Employee[]>([])
   const [shifts, setShifts] = useState<WorkShift[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,7 +51,11 @@ export default function ShiftsByEmployeePage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingShift, setEditingShift] = useState<WorkShift | null>(null)
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+
+  // Filtros para la vista por fecha (rango)
+  const [selectedEmployeeDay, setSelectedEmployeeDay] = useState<string>('all')
+  const [startDateDay, setStartDateDay] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [endDateDay, setEndDateDay] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
   const [pagination, setPagination] = useState<PaginationData>({
@@ -81,10 +85,13 @@ export default function ShiftsByEmployeePage() {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      params.append('startDate', selectedDate)
-      params.append('endDate', selectedDate)
+      params.append('startDate', startDateDay)
+      params.append('endDate', endDateDay)
       params.append('page', page.toString())
       params.append('limit', limit.toString())
+      if (selectedEmployeeDay !== 'all') {
+        params.append('employeeId', selectedEmployeeDay)
+      }
       if (sortBy) {
         params.append('sortBy', sortBy)
         params.append('sortOrder', sortOrder)
@@ -111,10 +118,10 @@ export default function ShiftsByEmployeePage() {
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'day') {
+    if (activeTab === 'date') {
       fetchShiftsByDay()
     }
-  }, [activeTab, selectedDate, page, limit, sortBy, sortOrder])
+  }, [activeTab, startDateDay, endDateDay, selectedEmployeeDay, page, limit, sortBy, sortOrder])
 
   const filteredEmployees = employees.filter((e) =>
     e.name.toLowerCase().includes(query.toLowerCase().trim())
@@ -125,7 +132,7 @@ export default function ShiftsByEmployeePage() {
     setIsEditDialogOpen(false)
     toast.success(wasEditing ? 'Turno actualizado correctamente' : 'Turno creado correctamente')
     setEditingShift(null)
-    if (activeTab === 'day') {
+    if (activeTab === 'date') {
       fetchShiftsByDay()
     }
   }
@@ -220,10 +227,10 @@ export default function ShiftsByEmployeePage() {
       </div>
       <div className="border-b mb-6"></div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'employees' | 'day')}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'employees' | 'date')}>
         <TabsList>
           <TabsTrigger value="employees">Empleados</TabsTrigger>
-          <TabsTrigger value="day">Día</TabsTrigger>
+          <TabsTrigger value="date">Fecha</TabsTrigger>
         </TabsList>
 
         <TabsContent value="employees">
@@ -283,19 +290,105 @@ export default function ShiftsByEmployeePage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="day">
+        <TabsContent value="date">
           <div className="space-y-4">
-            <div className="w-full md:w-80">
-              <label htmlFor="date" className="text-sm text-muted-foreground">Seleccionar fecha</label>
-              <Input
-                id="date"
-                type="date"
-                value={selectedDate}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value)
-                  setPage(1)
-                }}
-              />
+            {/* Filtros para la vista por fecha */}
+            <div className="space-y-3">
+              <div className="grid gap-4 sm:grid-cols-2 w-full md:w-[520px]">
+                {/* Filtro por empleado */}
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground">Empleado</label>
+                  <Select
+                    value={selectedEmployeeDay}
+                    onValueChange={(value) => {
+                      setSelectedEmployeeDay(value)
+                      setPage(1)
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos los empleados" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los empleados</SelectItem>
+                      {employees.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Rango de fechas */}
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground">Rango de fechas</label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={startDateDay}
+                      onChange={(e) => {
+                        setStartDateDay(e.target.value)
+                        setPage(1)
+                      }}
+                    />
+                    <span className="text-muted-foreground text-sm">a</span>
+                    <Input
+                      type="date"
+                      value={endDateDay}
+                      onChange={(e) => {
+                        setEndDateDay(e.target.value)
+                        setPage(1)
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Atajos rápidos de fecha */}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const today = new Date()
+                    const todayStr = format(today, 'yyyy-MM-dd')
+                    setStartDateDay(todayStr)
+                    setEndDateDay(todayStr)
+                    setPage(1)
+                  }}
+                >
+                  Hoy
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const yesterday = subDays(new Date(), 1)
+                    const yStr = format(yesterday, 'yyyy-MM-dd')
+                    setStartDateDay(yStr)
+                    setEndDateDay(yStr)
+                    setPage(1)
+                  }}
+                >
+                  Ayer
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
+                    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 })
+                    setStartDateDay(format(weekStart, 'yyyy-MM-dd'))
+                    setEndDateDay(format(weekEnd, 'yyyy-MM-dd'))
+                    setPage(1)
+                  }}
+                >
+                  Semana actual
+                </Button>
+              </div>
             </div>
 
             {loading ? (
@@ -313,7 +406,10 @@ export default function ShiftsByEmployeePage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>
-                      Turnos del {format(parseLocalDate(selectedDate), 'dd/MM/yyyy', { locale: es })}
+                      Turnos del {format(parseLocalDate(startDateDay), 'dd/MM/yyyy', { locale: es })}
+                      {startDateDay !== endDateDay && (
+                        <> al {format(parseLocalDate(endDateDay), 'dd/MM/yyyy', { locale: es })}</>
+                      )}
                     </CardTitle>
                     <CardDescription>
                       {pagination.total} turno{pagination.total !== 1 ? 's' : ''} registrado{pagination.total !== 1 ? 's' : ''}
@@ -325,6 +421,7 @@ export default function ShiftsByEmployeePage() {
                         <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="w-[120px] px-3">Fecha</TableHead>
                             <TableHead className="w-[140px] px-3">Empleado</TableHead>
                             <TableHead className="w-[180px] px-3">Horario</TableHead>
                             <TableHead className="w-[70px] text-right px-3">Horas</TableHead>
@@ -335,13 +432,16 @@ export default function ShiftsByEmployeePage() {
                       <TableBody>
                         {shifts.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center text-muted-foreground">
-                              No hay turnos registrados para esta fecha
+                            <TableCell colSpan={6} className="text-center text-muted-foreground">
+                              No hay turnos registrados para este rango
                             </TableCell>
                           </TableRow>
                         ) : (
                           shifts.map((shift) => (
                             <TableRow key={shift.id}>
+                              <TableCell className="px-3">
+                                {format(parseLocalDate(shift.date), 'dd/MM/yyyy', { locale: es })}
+                              </TableCell>
                               <TableCell className="font-medium px-3">
                                 {shift.employee.name}
                               </TableCell>
