@@ -36,8 +36,8 @@ export function SegmentedControl({
           className={cn(
             'h-8 rounded-sm px-3',
             value === option.value
-              ? 'bg-background text-foreground shadow-sm'
-              : 'hover:bg-transparent hover:text-foreground'
+              ? 'bg-primary text-primary-foreground shadow-sm font-semibold hover:bg-primary hover:text-primary-foreground'
+              : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
           )}
           onClick={() => onValueChange(option.value)}
         >

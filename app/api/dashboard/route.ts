@@ -120,7 +120,10 @@ export async function GET(request: NextRequest) {
           (shift.exitTime2.getTime() - shift.entryTime2.getTime()) /
           (1000 * 60 * 60)
       }
-      unpaidSalaries += hours * shift.employee.hourlyRate
+
+      // Si el empleado no tiene valor por hora definido, se considera 0 para este cálculo
+      const hourlyRate = shift.employee.hourlyRate ?? 0
+      unpaidSalaries += hours * hourlyRate
     })
 
     // Obtener meses disponibles (de todos los turnos)

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { LayoutDashboard, Users, Clock, Calculator, FileText, Home, Menu, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, Users, Clock, Calculator, FileText, Home, Menu, X, ChevronLeft, ChevronRight, CalendarCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useState, useEffect } from 'react'
@@ -12,10 +12,11 @@ import { useSidebar } from '@/contexts/SidebarContext'
 
 const navItems = [
   { href: '/', label: 'Inicio', icon: Home },
-  { href: '/dashboard', label: 'Estadísticas', icon: LayoutDashboard },
   { href: '/employees', label: 'Empleados', icon: Users },
   { href: '/shifts', label: 'Turnos', icon: Clock },
   { href: '/salaries', label: 'Sueldos', icon: Calculator },
+  { href: '/shift-planning', label: 'Planificación', icon: CalendarCheck },
+  { href: '/dashboard', label: 'Reportes', icon: LayoutDashboard },
 ]
 
 export function Sidebar() {
@@ -66,18 +67,18 @@ export function Sidebar() {
               </div>
             )}
             <span className="font-bold text-lg truncate">
-              Sistema de Gestión
+              Patio Cervecero Oro Verde
             </span>
           </Link>
         )}
         {isCollapsed && (
-          <div className="w-8 h-8 flex items-center justify-center">
+          <div className="w-full flex items-center justify-center">
             {!imageError ? (
               <Image
                 src="/logo.png"
                 alt="Logo"
-                width={24}
-                height={24}
+                width={20}
+                height={20}
                 className="object-contain"
                 priority
                 onError={() => setImageError(true)}
@@ -177,7 +178,7 @@ export function Sidebar() {
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 h-screen border-r bg-background transition-all duration-300",
-          isCollapsed ? "w-16" : "w-64",
+          isCollapsed ? "w-[56px]" : "w-[280px]",
           // En móviles: oculto por defecto, visible cuando el menú está abierto
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}

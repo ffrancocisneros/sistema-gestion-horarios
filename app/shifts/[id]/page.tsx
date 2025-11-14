@@ -301,33 +301,34 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
             </div>
           ) : (
             <>
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleSort('date')}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>Fecha</span>
-                        <span className="text-xs">{getSortIcon('date')}</span>
-                      </div>
-                    </TableHead>
-                    <TableHead>Turno 1</TableHead>
-                    <TableHead>Turno 2</TableHead>
-                    <TableHead>Horas</TableHead>
-                    <TableHead>Pagado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
+              <div className="flex justify-center">
+                <div className="rounded-md border overflow-x-auto max-w-4xl w-full">
+                  <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-muted/50 w-[110px] px-3"
+                        onClick={() => handleSort('date')}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>Fecha</span>
+                          <span className="text-xs">{getSortIcon('date')}</span>
+                        </div>
+                      </TableHead>
+                      <TableHead className="w-[160px] px-3">Turno 1</TableHead>
+                      <TableHead className="w-[160px] px-3">Turno 2</TableHead>
+                      <TableHead className="w-[70px] px-3">Horas</TableHead>
+                      <TableHead className="w-[70px] px-3">Pagado</TableHead>
+                      <TableHead className="w-[100px] text-right px-3">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
                   {shifts.map((shift) => (
                     <TableRow key={shift.id}>
-                      <TableCell>
+                      <TableCell className="px-3">
                         {format(parseLocalDate(shift.date), 'dd/MM/yyyy', { locale: es })}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-3">
                         {shift.entryTime1 ? (
                           <div className="flex items-center gap-2">
                             <span>
@@ -345,7 +346,7 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
                           '-'
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-3">
                         {shift.entryTime2 ? (
                           <div className="flex items-center gap-2">
                             <span>
@@ -363,16 +364,16 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
                           '-'
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-3">
                         {calculateHours(shift).toFixed(2)}h
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-3">
                         <Checkbox
                           checked={shift.isPaid}
                           onCheckedChange={() => handleTogglePayment(shift)}
                         />
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right px-3">
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="ghost"
@@ -394,6 +395,7 @@ export default function EmployeeShiftsPage({ params }: { params: { id: string } 
                   ))}
                 </TableBody>
               </Table>
+                </div>
               </div>
               {pagination.totalPages > 1 && (
                 <div className="mt-4">

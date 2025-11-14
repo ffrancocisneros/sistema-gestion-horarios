@@ -11,10 +11,11 @@ import { toast } from 'sonner'
 
 const employeeSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
-  hourlyRate: z.string().refine((val) => {
+  hourlyRate: z.string().optional().refine((val) => {
+    if (!val || val === '') return true // Permitir vacío
     const num = parseFloat(val)
     return !isNaN(num) && num > 0
-  }, 'El valor por hora debe ser un número positivo'),
+  }, 'El valor por hora debe ser un número positivo o dejarse vacío'),
 })
 
 type EmployeeFormData = z.infer<typeof employeeSchema>
@@ -79,7 +80,9 @@ export function EmployeeForm({ employee, onSuccess }: EmployeeFormProps) {
         },
         body: JSON.stringify({
           name: data.name,
-          hourlyRate: data.hourlyRate,
+          hourlyRate: data.hourlyRate && data.hourlyRate !== '' 
+            ? parseFloat(data.hourlyRate) 
+            : null,
         }),
         signal: controller.signal,
       })
@@ -87,7 +90,6 @@ export function EmployeeForm({ employee, onSuccess }: EmployeeFormProps) {
       clearTimeout(timeoutId)
 
       if (response.ok) {
-        toast.success(employee ? 'Empleado actualizado' : 'Empleado creado')
         onSuccess()
       } else {
         const error = await response.json().catch(() => ({ error: 'Error desconocido' }))
@@ -136,7 +138,7 @@ export function EmployeeForm({ employee, onSuccess }: EmployeeFormProps) {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="hourlyRate">Valor por Hora</Label>
+        <Label htmlFor="hourlyRate">Valor por Hora (opcional)</Label>
         <Input
           id="hourlyRate"
           type="number"

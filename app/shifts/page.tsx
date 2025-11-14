@@ -176,7 +176,7 @@ export default function ShiftsByEmployeePage() {
   }
 
   return (
-    <div>
+    <div className="container mx-auto py-8">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Turnos</h1>
@@ -218,6 +218,7 @@ export default function ShiftsByEmployeePage() {
           </DialogContent>
         </Dialog>
       </div>
+      <div className="border-b mb-6"></div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'employees' | 'day')}>
         <TabsList>
@@ -252,27 +253,29 @@ export default function ShiftsByEmployeePage() {
                       : 'No se encontraron empleados para tu búsqueda.'}
                   </div>
                 ) : (
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Nombre</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredEmployees.map((e) => (
-                        <TableRow key={e.id}>
-                          <TableCell className="font-medium">{e.name}</TableCell>
-                          <TableCell className="text-right">
-                            <Link href={`/shifts/${e.id}`}>
-                              <Button variant="outline">Ver turnos</Button>
-                            </Link>
-                          </TableCell>
+                  <div className="flex justify-center">
+                    <div className="rounded-md border overflow-x-auto max-w-2xl w-full">
+                      <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="px-3">Nombre</TableHead>
+                          <TableHead className="text-right px-3">Acciones</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredEmployees.map((e) => (
+                          <TableRow key={e.id}>
+                            <TableCell className="font-medium px-3">{e.name}</TableCell>
+                            <TableCell className="text-right px-3">
+                              <Link href={`/shifts/${e.id}`}>
+                                <Button variant="outline">Ver turnos</Button>
+                              </Link>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -317,17 +320,18 @@ export default function ShiftsByEmployeePage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="rounded-md border overflow-x-auto">
-                      <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[200px]">Empleado</TableHead>
-                          <TableHead>Horario</TableHead>
-                          <TableHead className="w-[100px] text-right">Horas</TableHead>
-                          <TableHead className="w-[100px] text-center">Pagado</TableHead>
-                          <TableHead className="w-[100px] text-right">Acciones</TableHead>
-                        </TableRow>
-                      </TableHeader>
+                    <div className="flex justify-center">
+                      <div className="rounded-md border overflow-x-auto max-w-4xl w-full">
+                        <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[140px] px-3">Empleado</TableHead>
+                            <TableHead className="w-[180px] px-3">Horario</TableHead>
+                            <TableHead className="w-[70px] text-right px-3">Horas</TableHead>
+                            <TableHead className="w-[70px] text-center px-3">Pagado</TableHead>
+                            <TableHead className="w-[80px] text-right px-3">Acciones</TableHead>
+                          </TableRow>
+                        </TableHeader>
                       <TableBody>
                         {shifts.length === 0 ? (
                           <TableRow>
@@ -338,10 +342,10 @@ export default function ShiftsByEmployeePage() {
                         ) : (
                           shifts.map((shift) => (
                             <TableRow key={shift.id}>
-                              <TableCell className="font-medium">
+                              <TableCell className="font-medium px-3">
                                 {shift.employee.name}
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="px-3">
                                 <div className="space-y-1">
                                   {shift.entryTime1 && (
                                     <div className="flex items-center gap-2">
@@ -373,7 +377,7 @@ export default function ShiftsByEmployeePage() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right px-3">
                                 {(() => {
                                   let hours = 0
                                   if (shift.entryTime1 && shift.exitTime1) {
@@ -393,10 +397,10 @@ export default function ShiftsByEmployeePage() {
                                   return hours > 0 ? `${hours.toFixed(2)}h` : '-'
                                 })()}
                               </TableCell>
-                              <TableCell className="text-center">
+                              <TableCell className="text-center px-3">
                                 {shift.isPaid ? 'Sí' : 'No'}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right px-3">
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -410,6 +414,7 @@ export default function ShiftsByEmployeePage() {
                         )}
                       </TableBody>
                     </Table>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

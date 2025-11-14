@@ -95,9 +95,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { name, hourlyRate } = body
 
-    if (!name || !hourlyRate) {
+    if (!name) {
       return NextResponse.json(
-        { error: 'Nombre y valor por hora son requeridos' },
+        { error: 'El nombre es requerido' },
         { status: 400 }
       )
     }
@@ -105,11 +105,12 @@ export async function POST(request: NextRequest) {
     const employee = await prisma.employee.create({
       data: {
         name,
-        hourlyRate: parseFloat(hourlyRate),
+        hourlyRate: hourlyRate && hourlyRate !== '' ? parseFloat(hourlyRate) : null,
       },
     })
 
-    await logActivity('CREATE_EMPLOYEE', employee.id, `Empleado ${name} creado con valor por hora ${hourlyRate}`)
+    const hourlyRateText = hourlyRate ? `con valor por hora ${hourlyRate}` : 'sin valor por hora asignado'
+    await logActivity('CREATE_EMPLOYEE', employee.id, `Empleado ${name} creado ${hourlyRateText}`)
 
     return NextResponse.json(employee, { status: 201 })
   } catch (error: any) {

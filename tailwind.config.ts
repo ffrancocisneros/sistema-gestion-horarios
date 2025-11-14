@@ -22,6 +22,7 @@ const config = {
         sans: ['var(--font-geist-sans)', 'system-ui', '-apple-system', 'sans-serif'],
         serif: ['Georgia', 'serif'],
         mono: ['var(--font-geist-mono)', 'monospace'],
+        'the-sans': ['var(--font-the-sans-office)', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

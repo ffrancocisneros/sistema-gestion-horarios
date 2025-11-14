@@ -10,17 +10,25 @@ interface SidebarContextType {
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined)
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('sidebar-collapsed')
-      return saved ? JSON.parse(saved) : false
-    }
-    return false
-  })
+  // Inicializar siempre con true (colapsado) para consistencia servidor/cliente
+  const [isCollapsed, setIsCollapsed] = useState(true)
+  const [mounted, setMounted] = useState(false)
 
+  // Leer de localStorage solo después de montar en el cliente
   useEffect(() => {
-    localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed))
-  }, [isCollapsed])
+    setMounted(true)
+    const saved = localStorage.getItem('sidebar-collapsed')
+    if (saved !== null) {
+      setIsCollapsed(JSON.parse(saved))
+    }
+  }, [])
+
+  // Guardar en localStorage solo después de montar
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed))
+    }
+  }, [isCollapsed, mounted])
 
   return (
     <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>

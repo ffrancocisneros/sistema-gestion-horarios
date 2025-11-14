@@ -9,9 +9,13 @@ import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Pagination } from '@/components/ui/pagination'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, getWeek, getDay, addWeeks, subWeeks, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale/es'
-import { DollarSign, Clock, Calendar, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { DollarSign, Clock, Calendar, AlertTriangle, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSortableTable } from '@/hooks/use-sortable-table'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Employee {
   id: string
@@ -67,7 +71,23 @@ export default function SalariesPage() {
   const [limit, setLimit] = useState(20)
   const [fetchAbortController, setFetchAbortController] = useState<AbortController | null>(null)
 
+  // Estados para exportación de reportes
+  const [exportPeriod, setExportPeriod] = useState<'weekly' | 'monthly'>('monthly')
+  const [exportDate, setExportDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [exportMonth, setExportMonth] = useState(format(new Date(), 'yyyy-MM'))
+  const [selectedEmployeesExport, setSelectedEmployeesExport] = useState<string[]>([])
+  const [exportAll, setExportAll] = useState(true)
+  const [exporting, setExporting] = useState(false)
+  const [showIncompleteWarning, setShowIncompleteWarning] = useState(false)
+  const [incompleteShiftsInfo, setIncompleteShiftsInfo] = useState<{ count: number; employees: string[] }>({ count: 0, employees: [] })
+  const [employeesWithoutRate, setEmployeesWithoutRate] = useState<string[]>([])
+
   const { sortBy, sortOrder, handleSort, getSortIcon } = useSortableTable<'date' | 'employeeName' | 'hours' | 'salary'>('date', 'desc')
+
+  // Empleados ordenados alfabéticamente
+  const sortedEmployees = useMemo(() => {
+    return [...employees].sort((a, b) => a.name.localeCompare(b.name, 'es'))
+  }, [employees])
 
   // Calcular fechas automáticamente según el período
   const { startDate, endDate, periodLabel, periodSubtitle } = useMemo(() => {
@@ -116,6 +136,166 @@ export default function SalariesPage() {
     }
   }
 
+  // Funciones para exportación
+  const handleEmployeeToggleExport = (employeeId: string) => {
+    setSelectedEmployeesExport(prev => {
+      if (prev.includes(employeeId)) {
+        return prev.filter(id => id !== employeeId)
+      } else {
+        return [...prev, employeeId]
+      }
+    })
+  }
+
+  const handleGeneratePDF = async () => {
+    setExporting(true)
+    try {
+      // Calcular fechas según período
+      let startDateExport: Date
+      let endDateExport: Date
+
+      if (exportPeriod === 'weekly') {
+        const [year, month, day] = exportDate.split('-').map(Number)
+        const selectedDate = new Date(year, month - 1, day)
+        startDateExport = startOfWeek(selectedDate, { weekStartsOn: 1 })
+        endDateExport = endOfWeek(selectedDate, { weekStartsOn: 1 })
+      } else {
+        const [year, month] = exportMonth.split('-').map(Number)
+        const selectedMonth = new Date(year, month - 1, 1)
+        startDateExport = startOfMonth(selectedMonth)
+        endDateExport = endOfMonth(selectedMonth)
+      }
+
+      // Verificar si hay turnos incompletos
+      const checkParams = new URLSearchParams()
+      checkParams.append('startDate', format(startDateExport, 'yyyy-MM-dd'))
+      checkParams.append('endDate', format(endDateExport, 'yyyy-MM-dd'))
+      if (!exportAll && selectedEmployeesExport.length > 0) {
+        checkParams.append('employeeId', selectedEmployeesExport.join(','))
+      }
+
+      const checkResponse = await fetch(`/api/salaries?${checkParams.toString()}`)
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json()
+        
+        // Verificar empleados sin hourlyRate
+        const employeesWithoutRate = checkData.detailedShifts?.filter((shift: any) => 
+          shift.hourlyRate === null || shift.hourlyRate === undefined
+        ) || []
+
+        if (employeesWithoutRate.length > 0) {
+          const uniqueEmployees = Array.from<string>(
+            new Set<string>(employeesWithoutRate.map((s: any) => s.employeeName))
+          )
+          toast.error(
+            `No se puede generar el PDF. Los siguientes empleados no tienen valor por hora asignado: ${uniqueEmployees.join(', ')}`,
+            { duration: 6000 }
+          )
+          setExporting(false)
+          return
+        }
+        
+        // Buscar turnos incompletos
+        const incompleteShifts = checkData.detailedShifts?.filter((shift: any) => {
+          const hasIncompleteEntry1 = (shift.entryTime1 && !shift.exitTime1) || (!shift.entryTime1 && shift.exitTime1)
+          const hasIncompleteEntry2 = (shift.entryTime2 && !shift.exitTime2) || (!shift.entryTime2 && shift.exitTime2)
+          return hasIncompleteEntry1 || hasIncompleteEntry2
+        }) || []
+
+        if (incompleteShifts.length > 0) {
+          // Obtener nombres únicos de empleados con turnos incompletos
+          const uniqueEmployees = Array.from<string>(
+            new Set<string>(incompleteShifts.map((s: any) => s.employeeName))
+          )
+          setIncompleteShiftsInfo({
+            count: incompleteShifts.length,
+            employees: uniqueEmployees
+          })
+          setShowIncompleteWarning(true)
+          setExporting(false)
+          return
+        }
+      }
+
+      // Si no hay turnos incompletos ni empleados sin hourlyRate, proceder con la exportación
+      await proceedWithExport(startDateExport, endDateExport)
+    } catch (error: any) {
+      console.error('Error generating PDF:', error)
+      toast.error(error.message || 'Error al generar el reporte')
+      setExporting(false)
+    }
+  }
+
+  const proceedWithExport = async (startDateExport: Date, endDateExport: Date) => {
+    setExporting(true)
+    try {
+      // Construir parámetros
+      const params = new URLSearchParams()
+      params.append('period', exportPeriod)
+      params.append('startDate', format(startDateExport, 'yyyy-MM-dd'))
+      params.append('endDate', format(endDateExport, 'yyyy-MM-dd'))
+
+      // Agregar empleados seleccionados
+      if (exportAll) {
+        params.append('employeeIds', 'all')
+      } else {
+        if (selectedEmployeesExport.length === 0) {
+          toast.error('Selecciona al menos un empleado')
+          setExporting(false)
+          return
+        }
+        params.append('employeeIds', selectedEmployeesExport.join(','))
+      }
+
+      // Hacer fetch
+      const response = await fetch(`/api/salaries/report?${params.toString()}`)
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Error al generar el PDF')
+      }
+
+      // Descargar PDF
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `reporte-sueldos-${exportPeriod === 'weekly' ? 'semanal' : 'mensual'}-${format(new Date(), 'yyyy-MM-dd')}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      toast.success('Reporte generado correctamente')
+    } catch (error: any) {
+      console.error('Error generating PDF:', error)
+      toast.error(error.message || 'Error al generar el reporte')
+    } finally {
+      setExporting(false)
+      setShowIncompleteWarning(false)
+    }
+  }
+
+  const handleConfirmExportWithIncomplete = async () => {
+    // Calcular fechas según período
+    let startDateExport: Date
+    let endDateExport: Date
+
+    if (exportPeriod === 'weekly') {
+      const [year, month, day] = exportDate.split('-').map(Number)
+      const selectedDate = new Date(year, month - 1, day)
+      startDateExport = startOfWeek(selectedDate, { weekStartsOn: 1 })
+      endDateExport = endOfWeek(selectedDate, { weekStartsOn: 1 })
+    } else {
+      const [year, month] = exportMonth.split('-').map(Number)
+      const selectedMonth = new Date(year, month - 1, 1)
+      startDateExport = startOfMonth(selectedMonth)
+      endDateExport = endOfMonth(selectedMonth)
+    }
+
+    await proceedWithExport(startDateExport, endDateExport)
+  }
+
   // Resetear a la fecha actual cuando cambia el período
   useEffect(() => {
     setCurrentDate(new Date())
@@ -124,6 +304,18 @@ export default function SalariesPage() {
   useEffect(() => {
     fetchEmployees()
   }, [])
+
+  // Detectar empleados sin hourlyRate
+  useEffect(() => {
+    if (salaryData?.detailedShifts) {
+      const missingRate = salaryData.detailedShifts
+        .filter(shift => shift.hourlyRate === null || shift.hourlyRate === undefined)
+        .map(shift => shift.employeeName)
+      setEmployeesWithoutRate(
+        Array.from<string>(new Set<string>(missingRate))
+      )
+    }
+  }, [salaryData])
 
   useEffect(() => {
     let isMounted = true
@@ -401,31 +593,14 @@ export default function SalariesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">{periodLabel}</h1>
-          <p className="text-muted-foreground mt-1 whitespace-pre-line text-sm sm:text-base">
-            {periodSubtitle}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handlePreviousPeriod}
-            className="p-2 min-h-[44px] min-w-[44px] rounded-md border bg-background hover:bg-muted transition-colors"
-            aria-label="Período anterior"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button
-            onClick={handleNextPeriod}
-            className="p-2 min-h-[44px] min-w-[44px] rounded-md border bg-background hover:bg-muted transition-colors"
-            aria-label="Período siguiente"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
+    <div className="container mx-auto py-8 space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold">Sueldos</h1>
+        <p className="text-muted-foreground mt-1">
+          Calcula y gestiona los sueldos de los empleados
+        </p>
       </div>
+      <div className="border-b mb-6"></div>
 
       {/* Filtros */}
       <Card>
@@ -445,7 +620,7 @@ export default function SalariesPage() {
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
                   <SelectItem value="all">Todos los Empleados</SelectItem>
-                  {employees.map((employee) => (
+                  {sortedEmployees.map((employee) => (
                     <SelectItem key={employee.id} value={employee.id}>
                       {employee.name}
                     </SelectItem>
@@ -470,6 +645,27 @@ export default function SalariesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Información del período con botones de navegación */}
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-lg font-medium whitespace-pre-line">{periodSubtitle}</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePreviousPeriod}
+            className="p-2 min-h-[44px] min-w-[44px] rounded-md border bg-background hover:bg-muted transition-colors"
+            aria-label="Período anterior"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            onClick={handleNextPeriod}
+            className="p-2 min-h-[44px] min-w-[44px] rounded-md border bg-background hover:bg-muted transition-colors"
+            aria-label="Período siguiente"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
 
       {/* Resultados */}
       {loading ? (
@@ -507,6 +703,17 @@ export default function SalariesPage() {
                 <div className="text-3xl font-bold">
                   {formatCurrency(salaryData.summary.totalSalary)}
                 </div>
+                {employeesWithoutRate.length > 0 && (
+                  <div className="mt-4 flex flex-col items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-[#CD9A56]/20 text-[#CD9A56] dark:bg-[#CD9A56]/30 dark:text-[#CD9A56] text-sm">
+                      <AlertTriangle className="h-4 w-4" />
+                      {employeesWithoutRate.length} empleado{employeesWithoutRate.length > 1 ? 's' : ''} sin valor por hora
+                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      {employeesWithoutRate.join(', ')}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -657,7 +864,16 @@ export default function SalariesPage() {
                               </TableCell>
                               {/* Sueldo día */}
                               <TableCell className="text-center font-bold whitespace-nowrap">
-                                {formatCurrency(shift.salary)}
+                                {shift.hourlyRate === null || shift.hourlyRate === undefined ? (
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#CD9A56]/20 text-[#CD9A56] dark:bg-[#CD9A56]/30 dark:text-[#CD9A56] text-xs font-normal">
+                                      <AlertTriangle className="h-3 w-3" />
+                                      Sin valor/hora
+                                    </span>
+                                  </div>
+                                ) : (
+                                  formatCurrency(shift.salary)
+                                )}
                               </TableCell>
                             </TableRow>
                           )
@@ -684,8 +900,138 @@ export default function SalariesPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Sección de exportación de reportes */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Exportar Reportes de Sueldos</CardTitle>
+              <CardDescription>
+                Genera reportes en PDF de sueldos por período y empleado
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Selector de período */}
+                <div className="space-y-2">
+                  <Label className="block mb-3">Período</Label>
+                  <SegmentedControl
+                    options={[
+                      { value: 'weekly', label: 'Semanal' },
+                      { value: 'monthly', label: 'Mensual' },
+                    ]}
+                    value={exportPeriod}
+                    onValueChange={(value) => setExportPeriod(value as 'weekly' | 'monthly')}
+                  />
+                </div>
+
+                {/* Selector de fecha/mes según período */}
+                <div className="space-y-2">
+                  <Label htmlFor={exportPeriod === 'weekly' ? 'export-date' : 'export-month'}>
+                    {exportPeriod === 'weekly' ? 'Fecha' : 'Mes'}
+                  </Label>
+                  {exportPeriod === 'weekly' ? (
+                    <Input
+                      id="export-date"
+                      type="date"
+                      value={exportDate}
+                      onChange={(e) => setExportDate(e.target.value)}
+                      className="w-full sm:w-64"
+                    />
+                  ) : (
+                    <Input
+                      id="export-month"
+                      type="month"
+                      value={exportMonth}
+                      onChange={(e) => setExportMonth(e.target.value)}
+                      className="w-full sm:w-64"
+                    />
+                  )}
+                </div>
+
+                {/* Selección de empleados */}
+                <div className="space-y-3">
+                  <Label>Empleados</Label>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="export-all"
+                      checked={exportAll}
+                      onCheckedChange={(checked) => {
+                        setExportAll(checked as boolean)
+                        if (checked) {
+                          setSelectedEmployeesExport([])
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="export-all"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Todos los empleados
+                    </label>
+                  </div>
+
+                  {!exportAll && sortedEmployees.length > 0 && (
+                    <div className="border rounded-lg p-4 space-y-2 max-h-60 overflow-y-auto">
+                      {sortedEmployees.map((employee) => (
+                        <div key={employee.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`employee-export-${employee.id}`}
+                            checked={selectedEmployeesExport.includes(employee.id)}
+                            onCheckedChange={() => handleEmployeeToggleExport(employee.id)}
+                          />
+                          <label
+                            htmlFor={`employee-export-${employee.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {employee.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Botón de generar */}
+                <Button
+                  onClick={handleGeneratePDF}
+                  disabled={exporting || (!exportAll && selectedEmployeesExport.length === 0)}
+                  className="w-full sm:w-auto"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {exporting ? 'Generando PDF...' : 'Generar PDF'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
+
+      {/* Diálogo de advertencia para turnos incompletos */}
+      <ConfirmDialog
+        open={showIncompleteWarning}
+        onOpenChange={setShowIncompleteWarning}
+        title="Turnos incompletos detectados"
+        description={
+          <div className="space-y-2">
+            <p>
+              Se encontraron <strong>{incompleteShiftsInfo.count}</strong> turno(s) incompleto(s) 
+              {incompleteShiftsInfo.employees.length > 0 && (
+                <> de: <strong>{incompleteShiftsInfo.employees.join(', ')}</strong></>
+              )}.
+            </p>
+            <p>
+              Estos turnos tienen horarios de ingreso o egreso faltantes, por lo que no se calcularán las horas ni el sueldo correspondiente en el reporte.
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              ¿Deseas continuar con la exportación de todos modos?
+            </p>
+          </div>
+        }
+        confirmText="Exportar de todos modos"
+        cancelText="Cancelar"
+        onConfirm={handleConfirmExportWithIncomplete}
+        variant="warning"
+      />
     </div>
   )
 }

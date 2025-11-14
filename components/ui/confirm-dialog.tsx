@@ -15,11 +15,11 @@ interface ConfirmDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
-  description: string
+  description: string | React.ReactNode
   confirmText?: string
   cancelText?: string
   onConfirm: () => void
-  variant?: 'default' | 'destructive'
+  variant?: 'default' | 'destructive' | 'warning'
 }
 
 export function ConfirmDialog({
@@ -42,8 +42,8 @@ export function ConfirmDialog({
       <DialogContent>
         <DialogHeader>
           <div className="flex items-center gap-3">
-            {variant === 'destructive' && (
-              <AlertTriangle className="h-5 w-5 text-destructive" />
+            {(variant === 'destructive' || variant === 'warning') && (
+              <AlertTriangle className={`h-5 w-5 ${variant === 'destructive' ? 'text-destructive' : 'text-yellow-500'}`} />
             )}
             <DialogTitle>{title}</DialogTitle>
           </div>

@@ -73,7 +73,8 @@ export async function GET(request: NextRequest) {
         salaryData[employeeId] = {
           employeeId,
           employeeName: shift.employee.name,
-          hourlyRate: shift.employee.hourlyRate,
+          // Si el empleado no tiene valor por hora definido, se considera 0 en los cálculos
+          hourlyRate: shift.employee.hourlyRate ?? 0,
           daily: {},
           weekly: {},
           monthly: {},
@@ -95,7 +96,8 @@ export async function GET(request: NextRequest) {
           (1000 * 60 * 60)
       }
 
-      const salary = hours * shift.employee.hourlyRate
+      const hourlyRate = shift.employee.hourlyRate ?? 0
+      const salary = hours * hourlyRate
       salaryData[employeeId].totalHours += hours
       salaryData[employeeId].totalSalary += salary
 
@@ -131,7 +133,8 @@ export async function GET(request: NextRequest) {
           (shift.exitTime2.getTime() - shift.entryTime2.getTime()) /
           (1000 * 60 * 60)
       }
-      const salary = hours * shift.employee.hourlyRate
+      const hourlyRate = shift.employee.hourlyRate ?? 0
+      const salary = hours * hourlyRate
 
       return {
         shiftId: shift.id,
@@ -144,7 +147,7 @@ export async function GET(request: NextRequest) {
         exitTime2: shift.exitTime2?.toISOString() || null,
         hours: Math.round(hours * 100) / 100,
         salary: Math.round(salary * 100) / 100,
-        hourlyRate: shift.employee.hourlyRate,
+        hourlyRate,
       }
     })
 

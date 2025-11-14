@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Pagination } from '@/components/ui/pagination'
-import { Pencil, Trash2, Plus, Eye, EyeOff } from 'lucide-react'
+import { Pencil, Trash2, Plus, Eye, EyeOff, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useSortableTable } from '@/hooks/use-sortable-table'
@@ -121,9 +121,10 @@ export default function EmployeesPage() {
   }
 
   const handleFormSuccess = () => {
+    const wasEditing = !!editingEmployee
     setIsDialogOpen(false)
     setEditingEmployee(null)
-    toast.success(editingEmployee ? 'Empleado actualizado correctamente' : 'Empleado creado correctamente')
+    toast.success(wasEditing ? 'Empleado actualizado correctamente' : 'Empleado creado correctamente')
     fetchEmployees()
   }
 
@@ -175,6 +176,7 @@ export default function EmployeesPage() {
           </DialogContent>
         </Dialog>
       </div>
+      <div className="border-b mb-6"></div>
 
       <Card>
         <CardHeader>
@@ -238,7 +240,14 @@ export default function EmployeesPage() {
                     <TableRow key={employee.id}>
                       <TableCell className="font-medium">{employee.name}</TableCell>
                       <TableCell>
-                        {showRates ? `$${Math.round(employee.hourlyRate)}` : '***'}
+                        {employee.hourlyRate === null || employee.hourlyRate === undefined ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#CD9A56]/20 text-[#CD9A56] dark:bg-[#CD9A56]/30 dark:text-[#CD9A56] text-xs">
+                            <AlertTriangle className="h-3 w-3" />
+                            Sin valor asignado
+                          </span>
+                        ) : (
+                          showRates ? `$${Math.round(employee.hourlyRate)}` : '***'
+                        )}
                       </TableCell>
                       <TableCell>
                         {new Date(employee.createdAt).toLocaleDateString('es-ES')}

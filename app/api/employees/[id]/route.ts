@@ -43,12 +43,19 @@ export async function PATCH(
     const body = await request.json()
     const { name, hourlyRate } = body
 
+    const updateData: any = {}
+    
+    if (name !== undefined) {
+      updateData.name = name
+    }
+    
+    if (hourlyRate !== undefined) {
+      updateData.hourlyRate = hourlyRate && hourlyRate !== '' ? parseFloat(hourlyRate) : null
+    }
+
     const employee = await prisma.employee.update({
       where: { id: params.id },
-      data: {
-        ...(name && { name }),
-        ...(hourlyRate && { hourlyRate: parseFloat(hourlyRate) }),
-      },
+      data: updateData,
     })
 
     await logActivity('UPDATE_EMPLOYEE', employee.id, `Empleado actualizado: ${name || employee.name}`)

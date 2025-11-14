@@ -13,12 +13,13 @@ datasource db {
 model Employee {
   id        String      @id @default(cuid())
   name      String
-  hourlyRate Float       // Valor por hora en la moneda local
+  hourlyRate Float?      // Valor por hora en la moneda local (opcional)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   
   workShifts WorkShift[]
   activityLogs ActivityLog[]
+  shiftPlanEntries ShiftPlanEntry[]
   
   @@index([createdAt])
   @@map("employees")
@@ -64,5 +65,43 @@ model ActivityLog {
   @@index([timestamp])
   @@index([employeeId, timestamp])
   @@map("activity_logs")
+}
+
+// Modelos para planificación de turnos (plan visual, no afecta turnos reales)
+model ShiftPlanWeek {
+  id          String    @id @default(cuid())
+  weekStartDate DateTime  @db.Date // Lunes de la semana
+  name        String?   // Nombre opcional del plan
+  description String?   // Descripción opcional
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  entries     ShiftPlanEntry[]
+  
+  @@unique([weekStartDate])
+  @@index([weekStartDate])
+  @@map("shift_plan_weeks")
+}
+
+model ShiftPlanEntry {
+  id          String    @id @default(cuid())
+  planWeekId  String
+  planWeek    ShiftPlanWeek @relation(fields: [planWeekId], references: [id], onDelete: Cascade)
+  
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  date        DateTime  @db.Date // Día específico del plan
+  startTime   String    // Hora de inicio (formato "HH:mm")
+  endTime     String    // Hora de fin (formato "HH:mm")
+  note        String?   // Nota opcional
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([planWeekId])
+  @@index([employeeId])
+  @@index([date])
+  @@map("shift_plan_entries")
 }
 
