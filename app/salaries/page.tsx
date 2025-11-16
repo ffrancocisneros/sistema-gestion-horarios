@@ -532,7 +532,14 @@ export default function SalariesPage() {
 
   const formatTime = (time: string | null) => {
     if (!time) return '-'
-    return format(new Date(time), 'HH:mm', { locale: es })
+    
+    // Extraer la hora directamente del string ISO sin convertir a Date
+    // para evitar problemas de zona horaria (UTC vs local)
+    const source = time.includes('T') ? time.split('T')[1] : time
+    const [hours, minutes] = source.split(':')
+    
+    if (!hours || !minutes) return '-'
+    return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`
   }
 
   // Helper para parsear fecha en zona horaria local (evita problemas de UTC)

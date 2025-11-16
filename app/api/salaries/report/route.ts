@@ -5,6 +5,17 @@ import autoTable from 'jspdf-autotable'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale/es'
 
+// Helper para extraer hora (HH:mm) de un Date sin problemas de zona horaria
+const extractTime = (value: Date | null): string => {
+  if (!value) return ''
+  const str = value.toISOString()
+  const timePart = str.includes('T') ? str.split('T')[1] : str
+  const [hours, minutes] = timePart.split(':')
+  
+  if (!hours || !minutes) return ''
+  return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -178,18 +189,18 @@ export async function GET(request: NextRequest) {
       yPos += 6
       doc.text(`Total de horas: ${data.totalHours.toFixed(2)}h`, 20, yPos)
       yPos += 6
-      doc.text(`Total a pagar: $${Math.round(data.totalSalary).toLocaleString('es-AR')}`, 20, yPos)
+      doc.text(`Total a pagar: $${(Math.round(data.totalSalary * 100) / 100).toLocaleString('es-AR')}`, 20, yPos)
       yPos += 10
 
       // Tabla de turnos
       const tableData = data.shifts.map((shift) => {
         let scheduleText = ''
         if (shift.entryTime1 && shift.exitTime1) {
-          scheduleText = `${format(new Date(shift.entryTime1), 'HH:mm')} - ${format(new Date(shift.exitTime1), 'HH:mm')}`
+          scheduleText = `${extractTime(shift.entryTime1)} - ${extractTime(shift.exitTime1)}`
         }
         if (shift.entryTime2 && shift.exitTime2) {
           if (scheduleText) scheduleText += '\n'
-          scheduleText += `${format(new Date(shift.entryTime2), 'HH:mm')} - ${format(new Date(shift.exitTime2), 'HH:mm')}`
+          scheduleText += `${extractTime(shift.entryTime2)} - ${extractTime(shift.exitTime2)}`
         }
 
         // Parsear fecha correctamente para evitar problemas de zona horaria
@@ -209,7 +220,7 @@ export async function GET(request: NextRequest) {
         'Total',
         '',
         `${data.totalHours.toFixed(2)}h`,
-        `$${Math.round(data.totalSalary).toLocaleString('es-AR')}`,
+        `$${(Math.round(data.totalSalary * 100) / 100).toLocaleString('es-AR')}`,
       ])
 
       autoTable(doc, {
