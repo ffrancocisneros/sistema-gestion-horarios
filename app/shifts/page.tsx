@@ -144,9 +144,14 @@ export default function ShiftsByEmployeePage() {
 
   const formatTime = (time: string | null | undefined): string => {
     if (!time) return '-'
-    const dt = new Date(time)
-    if (isNaN(dt.getTime())) return '-'
-    return format(dt, 'HH:mm')
+
+    // Extraer la hora directamente del string ISO sin convertir a Date
+    // para evitar problemas de zona horaria (UTC vs local)
+    const source = time.includes('T') ? time.split('T')[1] : time
+    const [hours, minutes] = source.split(':')
+
+    if (!hours || !minutes) return '-'
+    return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`
   }
 
   // Helper para parsear fecha en zona horaria local

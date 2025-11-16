@@ -57,6 +57,17 @@ interface ShiftFormProps {
   readonlyEmployeeId?: string
 }
 
+// Helper para extraer hora (HH:mm) de un string ISO o Date sin problemas de zona horaria
+const extractTime = (value?: string | null | Date): string => {
+  if (!value) return ''
+  const str = value instanceof Date ? value.toISOString() : value
+  const timePart = str.includes('T') ? str.split('T')[1] : str
+  const [hours, minutes] = timePart.split(':')
+
+  if (!hours || !minutes) return ''
+  return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`
+}
+
 export function ShiftForm({ employees, shift, onSuccess, readonlyEmployeeId }: ShiftFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSecondShift, setShowSecondShift] = useState(false)
@@ -94,18 +105,10 @@ export function ShiftForm({ employees, shift, onSuccess, readonlyEmployeeId }: S
             return format(localDate, 'yyyy-MM-dd')
           })()
         : format(new Date(), 'yyyy-MM-dd'),
-      entryTime1: shift?.entryTime1
-        ? format(new Date(shift.entryTime1), 'HH:mm')
-        : '',
-      exitTime1: shift?.exitTime1
-        ? format(new Date(shift.exitTime1), 'HH:mm')
-        : '',
-      entryTime2: shift?.entryTime2
-        ? format(new Date(shift.entryTime2), 'HH:mm')
-        : '',
-      exitTime2: shift?.exitTime2
-        ? format(new Date(shift.exitTime2), 'HH:mm')
-        : '',
+      entryTime1: extractTime(shift?.entryTime1),
+      exitTime1: extractTime(shift?.exitTime1),
+      entryTime2: extractTime(shift?.entryTime2),
+      exitTime2: extractTime(shift?.exitTime2),
       isPaid: shift?.isPaid ?? false,
     },
   })
@@ -126,18 +129,10 @@ export function ShiftForm({ employees, shift, onSuccess, readonlyEmployeeId }: S
           const localDate = new Date(year, month - 1, day)
           return format(localDate, 'yyyy-MM-dd')
         })(),
-        entryTime1: shift.entryTime1
-          ? format(new Date(shift.entryTime1), 'HH:mm')
-          : '',
-        exitTime1: shift.exitTime1
-          ? format(new Date(shift.exitTime1), 'HH:mm')
-          : '',
-        entryTime2: shift.entryTime2
-          ? format(new Date(shift.entryTime2), 'HH:mm')
-          : '',
-        exitTime2: shift.exitTime2
-          ? format(new Date(shift.exitTime2), 'HH:mm')
-          : '',
+        entryTime1: extractTime(shift.entryTime1),
+        exitTime1: extractTime(shift.exitTime1),
+        entryTime2: extractTime(shift.entryTime2),
+        exitTime2: extractTime(shift.exitTime2),
         isPaid: shift.isPaid,
       })
       setShowSecondShift(!!shift.entryTime2)
