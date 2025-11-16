@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
           format(shiftDateLocal, 'dd/MM/yyyy', { locale: es }),
           scheduleText,
           `${shift.hours.toFixed(2)}h`,
-          `$${shift.salary.toLocaleString('es-AR')}`,
+          `$${(Math.round(shift.salary * 100) / 100).toLocaleString('es-AR')}`,
         ]
       })
 

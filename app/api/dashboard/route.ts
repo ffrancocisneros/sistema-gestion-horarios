@@ -135,7 +135,11 @@ export async function GET(request: NextRequest) {
     const availableMonths = Array.from(
       new Set(
         allShifts.map((shift) => {
-          const d = new Date(shift.date)
+          // Parsear fecha en zona horaria local para evitar problemas de UTC
+          const dateStr = shift.date instanceof Date ? shift.date.toISOString() : String(shift.date)
+          const dateOnly = dateStr.split('T')[0]
+          const [year, month, day] = dateOnly.split('-').map(Number)
+          const d = new Date(year, month - 1, day)
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
         })
       )
