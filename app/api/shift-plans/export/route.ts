@@ -14,6 +14,23 @@ type GroupedEntry = {
   endTime: string
 }
 
+// Helper para extraer fecha (YYYY-MM-DD) de un Date sin problemas de zona horaria
+const extractLocalDate = (date: Date): string => {
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// Helper para formatear fecha localmente sin problemas de zona horaria
+const formatLocalDate = (date: Date, formatStr: string): string => {
+  const year = date.getUTCFullYear()
+  const month = date.getUTCMonth()
+  const day = date.getUTCDate()
+  const localDate = new Date(year, month, day)
+  return format(localDate, formatStr, { locale: es })
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -99,7 +116,7 @@ export async function GET(request: NextRequest) {
 
     // Período (centrado, debajo del logo/título)
     const weekEnd = addDays(weekStartDate, 6)
-    const periodText = `Semana del ${format(weekStartDate, 'dd/MM/yyyy', { locale: es })} al ${format(weekEnd, 'dd/MM/yyyy', { locale: es })}`
+    const periodText = `Semana del ${formatLocalDate(weekStartDate, 'dd/MM/yyyy')} al ${formatLocalDate(weekEnd, 'dd/MM/yyyy')}`
 
     doc.setFontSize(11)
     doc.setFont('helvetica', 'normal')
@@ -111,8 +128,8 @@ export async function GET(request: NextRequest) {
     const uniqueTimeSlots = new Set<string>()
 
     plan.entries.forEach((entry) => {
-      // Extraer la fecha en formato YYYY-MM-DD directamente de ISO string para evitar problemas de zona horaria
-      const dateKey = entry.date.toISOString().split('T')[0]
+      // Extraer la fecha en formato YYYY-MM-DD sin problemas de zona horaria
+      const dateKey = extractLocalDate(entry.date)
       const timeKey = `${entry.startTime}-${entry.endTime}`
       
       if (!entriesByDateAndTime[dateKey]) {
@@ -173,7 +190,7 @@ export async function GET(request: NextRequest) {
     const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
     const headers = ['Horarios', ...dayNames.map((day, i) => {
       const date = addDays(weekStartDate, i)
-      return `${day}\n${format(date, 'dd/MM')}`
+      return `${day}\n${formatLocalDate(date, 'dd/MM')}`
     })]
 
     // Preparar body de la tabla
@@ -203,8 +220,8 @@ export async function GET(request: NextRequest) {
         }
 
         const date = addDays(weekStartDate, dayIndex)
-        // Extraer fecha en UTC para evitar problemas de zona horaria
-        const dateKey = date.toISOString().split('T')[0]
+        // Extraer fecha sin problemas de zona horaria
+        const dateKey = extractLocalDate(date)
         const dayOfWeek = date.getUTCDay() // 0=Domingo, 1=Lunes, ..., 5=Viernes, 6=Sábado
         
         // Determinar si es Viernes (5) o Sábado (6)
