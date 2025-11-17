@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.hours - a.hours)
       .slice(0, 10) // Top 10
 
-    // Calcular turnos totales por empleado
+    // Calcular turnos totales por empleado (contar turnos individuales, no días)
     const totalShiftsByEmployee: Record<string, { name: string; total: number }> = {}
     // Calcular doble turno por empleado (tiene turno 2 completo)
     const doubleShiftByEmployee: Record<string, { name: string; doubles: number }> = {}
@@ -68,7 +68,16 @@ export async function GET(request: NextRequest) {
       if (!totalShiftsByEmployee[shift.employeeId]) {
         totalShiftsByEmployee[shift.employeeId] = { name: shift.employee.name, total: 0 }
       }
-      totalShiftsByEmployee[shift.employeeId].total += 1
+      
+      // Contar turnos individuales, no días
+      // Si tiene turno 1 completo, cuenta 1 turno
+      if (shift.entryTime1 && shift.exitTime1) {
+        totalShiftsByEmployee[shift.employeeId].total += 1
+      }
+      // Si tiene turno 2 completo, cuenta 1 turno adicional
+      if (shift.entryTime2 && shift.exitTime2) {
+        totalShiftsByEmployee[shift.employeeId].total += 1
+      }
 
       const hasSecond = !!(shift.entryTime2 && shift.exitTime2)
       if (hasSecond) {
