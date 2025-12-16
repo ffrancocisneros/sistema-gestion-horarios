@@ -229,13 +229,12 @@ export async function GET(request: NextRequest) {
           row.push({ content: '', styles: { fillColor: [245, 245, 245] } })
         } else if (timeSlot === '19:00-00:00') {
           // Fila "19:00-00:00"
-          // Revisar si Viernes o Sábado tienen turno 19:00-01:00
           const entries19to01 = entriesByDateAndTime[dateKey]?.['19:00-01:00'] || []
           const entries19to00 = entriesByDateAndTime[dateKey]?.['19:00-00:00'] || []
           const mergedEntries = [...entries19to00, ...entries19to01]
           
-          if (mergedEntries.length > 0) {
-            // Cualquier día con turno entre 19:00 y 00:00/01:00: usar rowSpan 2 y mostrar todos los empleados
+          if (entries19to01.length > 0 && mergedEntries.length > 0) {
+            // Hay turnos que terminan a las 01:00: el bloque ocupa 19:00-00:00 y 19:00-01:00 (rowSpan 2)
             row.push({
               content: mergedEntries.join('\n'),
               rowSpan: 2,
@@ -243,6 +242,12 @@ export async function GET(request: NextRequest) {
             })
             // Marcar que esta columna tiene rowSpan activo
             rowSpanTracker[dayIndex] = true
+          } else if (entries19to00.length > 0) {
+            // Solo hay turnos 19:00-00:00: mostrarlos solo en esta fila (sin rowSpan)
+            row.push({
+              content: entries19to00.join('\n'),
+              styles: { halign: 'center', valign: 'middle' }
+            })
           } else {
             // Sin turnos en ese rango para este día
             row.push({

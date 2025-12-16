@@ -93,9 +93,14 @@ export function ShiftPlanImageExport({ weekStart, entries }: ShiftPlanImageExpor
       const entries19to00 = entriesByDateAndTime[dateKey]?.['19:00-00:00'] || []
       const mergedEntries = [...entries19to00, ...entries19to01]
 
-      // Si hay algún turno entre 19:00 y 00:00/01:00, usar rowSpan=2 para cualquier día
-      if (mergedEntries.length > 0) {
+      // Si hay turnos que terminan a las 01:00, el bloque ocupa 19:00-00:00 y 19:00-01:00 (rowSpan 2)
+      if (entries19to01.length > 0 && mergedEntries.length > 0) {
         return { employees: mergedEntries, isEmpty: false, rowSpan: 2 }
+      }
+
+      // Si solo hay 19:00-00:00 (sin 19:00-01:00), mostrarlo solo en la fila 19:00-00:00 (rowSpan 1)
+      if (entries19to00.length > 0) {
+        return { employees: entries19to00, isEmpty: false, rowSpan: 1 }
       }
 
       // Sin turnos en ese rango
