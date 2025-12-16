@@ -83,22 +83,23 @@ export function ShiftPlanImageExport({ weekStart, entries }: ShiftPlanImageExpor
   // Determinar si una celda necesita rowSpan
   const getCellContent = (timeSlot: string, dayIndex: number) => {
     const date = addDays(weekStart, dayIndex)
-    const dateKey = date.toISOString().split('T')[0]
-    const dayOfWeek = date.getUTCDay() // 0=Domingo, 5=Viernes, 6=Sábado
-    const isFriday = dayOfWeek === 5
-    const isSaturday = dayOfWeek === 6
+    // Usar el mismo formato de fecha que se guarda en las entradas: 'yyyy-MM-dd'
+    const dateKey = format(date, 'yyyy-MM-dd')
 
     if (timeSlot === '19:00-01:00') {
       return { employees: [], isEmpty: true, rowSpan: 1 }
     } else if (timeSlot === '19:00-00:00') {
       const entries19to01 = entriesByDateAndTime[dateKey]?.['19:00-01:00'] || []
       const entries19to00 = entriesByDateAndTime[dateKey]?.['19:00-00:00'] || []
-      
-      if ((isFriday || isSaturday) && entries19to01.length > 0) {
-        return { employees: entries19to01, isEmpty: false, rowSpan: 2 }
-      } else {
-        return { employees: entries19to00, isEmpty: entries19to00.length === 0, rowSpan: 1 }
+      const mergedEntries = [...entries19to00, ...entries19to01]
+
+      // Si hay algún turno entre 19:00 y 00:00/01:00, usar rowSpan=2 para cualquier día
+      if (mergedEntries.length > 0) {
+        return { employees: mergedEntries, isEmpty: false, rowSpan: 2 }
       }
+
+      // Sin turnos en ese rango
+      return { employees: [], isEmpty: true, rowSpan: 1 }
     } else {
       const employees = entriesByDateAndTime[dateKey]?.[timeSlot] || []
       return { employees: employees, isEmpty: employees.length === 0, rowSpan: 1 }

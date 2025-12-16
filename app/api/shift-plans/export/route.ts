@@ -222,11 +222,6 @@ export async function GET(request: NextRequest) {
         const date = addDays(weekStartDate, dayIndex)
         // Extraer fecha sin problemas de zona horaria
         const dateKey = extractLocalDate(date)
-        const dayOfWeek = date.getUTCDay() // 0=Domingo, 1=Lunes, ..., 5=Viernes, 6=Sábado
-        
-        // Determinar si es Viernes (5) o Sábado (6)
-        const isFriday = dayOfWeek === 5
-        const isSaturday = dayOfWeek === 6
 
         // Caso especial: fila "19:00-01:00"
         if (timeSlot === '19:00-01:00') {
@@ -237,20 +232,21 @@ export async function GET(request: NextRequest) {
           // Revisar si Viernes o Sábado tienen turno 19:00-01:00
           const entries19to01 = entriesByDateAndTime[dateKey]?.['19:00-01:00'] || []
           const entries19to00 = entriesByDateAndTime[dateKey]?.['19:00-00:00'] || []
+          const mergedEntries = [...entries19to00, ...entries19to01]
           
-          if ((isFriday || isSaturday) && entries19to01.length > 0) {
-            // Turno de 19:00 a 01:00 en V-S: usar rowSpan 2
+          if (mergedEntries.length > 0) {
+            // Cualquier día con turno entre 19:00 y 00:00/01:00: usar rowSpan 2 y mostrar todos los empleados
             row.push({
-              content: entries19to01.join('\n'),
+              content: mergedEntries.join('\n'),
               rowSpan: 2,
               styles: { halign: 'center', valign: 'middle' }
             })
             // Marcar que esta columna tiene rowSpan activo
             rowSpanTracker[dayIndex] = true
           } else {
-            // Turno normal 19:00-00:00 o sin turno
+            // Sin turnos en ese rango para este día
             row.push({
-              content: entries19to00.length > 0 ? entries19to00.join('\n') : '',
+              content: '',
               styles: { halign: 'center', valign: 'middle' }
             })
           }
